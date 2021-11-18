@@ -61,16 +61,16 @@ fi
 
 
 function init {
-	echo -e -n "${GREEN}>>>${BLUE} Killing caching applications...$RESETCOLOR\n"
+	echo -e "${GREEN}>>>${BLUE} Killing caching applications...$RESETCOLOR"
 	killall -q chrome dropbox iceweasel skype icedove thunderbird firefox chromium xchat transmission deluge pidgin pidgin.orig
 	
-	echo -e -n "${GREEN}>>>${BLUE} Cleaning application caches..."
+	echo -e "${GREEN}>>>${BLUE} Cleaning application caches..."
 	bleachbit -c adobe_reader.cache chromium.cache chromium.current_session chromium.history elinks.history emesene.cache epiphany.cache firefox.url_history flash.cache flash.cookies google_chrome.cache google_chrome.history  links2.history opera.cache opera.search_history opera.url_history &> /dev/null
 }
 
 
 function starti2p {
-	echo -e -n "${GREEN}>>>${BLUE} Starting I2P services...$RESETCOLOR\n"
+	echo -e "${GREEN}>>>${BLUE} Starting I2P services...$RESETCOLOR"
 	service tor stop
 
 	# Modify DNS settings
@@ -79,11 +79,11 @@ function starti2p {
 		cp /etc/resolv.conf /etc/resolv.conf.bak;
 		touch /etc/resolv.conf;
 		echo -e 'nameserver 127.0.0.1\nnameserver 209.222.18.222\nnameserver 209.222.18.218' > /etc/resolv.conf;
-		echo -e "${GREEN}[${BLUE}i${GREEN}]${BLUE} Modified resolv.conf to use localhost and Private Internet Access DNS.$RESETCOLOR\n";
+		echo -e "${GREEN}[${BLUE}i${GREEN}]${BLUE} Modified resolv.conf to use localhost and Private Internet Access DNS.$RESETCOLOR";
 	else
 		cp /etc/resolvconf/resolv.conf.d/head{,.bak};
 		echo -e 'nameserver 127.0.0.1\nnameserver 209.222.18.222\nnameserver 209.222.18.218' >> /etc/resolvconf/resolv.conf.d/head;
-		echo -e "${GREEN}[${BLUE}i${GREEN}]${BLUE} Modified resolvconf to use localhost and Private Internet Access DNS.$RESETCOLOR\n";
+		echo -e "${GREEN}[${BLUE}i${GREEN}]${BLUE} Modified resolvconf to use localhost and Private Internet Access DNS.$RESETCOLOR";
 		resolvconf -u;
 	fi
 	sudo -u i2psvc i2prouter start
@@ -92,7 +92,7 @@ function starti2p {
 }
 
 function stopi2p {
-	echo -e -n "${GREEN}>>>${BLUE} Stopping I2P services...\n$RESETCOLOR"
+	echo -e "${GREEN}>>>${BLUE} Stopping I2P services...$RESETCOLOR"
 	sudo -u i2psvc i2prouter stop
 	
 	# restore DNS settings
@@ -121,32 +121,32 @@ function ip {
 function start {
 	# Make sure only root can run this script
 	if [ $(id -u) -ne 0 ]; then
-		echo -e -e "\n${GREEN}[$RED!${GREEN}] $RED This script must be run as root.$RESETCOLOR\n" >&2
+		echo -e -e "${GREEN}[$RED!${GREEN}] $RED This script must be run as root.$RESETCOLOR" >&2
 		exit 1
 	fi
 	
 	# Check defaults for Tor
 	grep -q -x 'RUN_DAEMON="yes"' /etc/default/tor
 	if [ $? -ne 0 ]; then
-		echo -e "\n${GREEN}[$RED!${GREEN}]$RED Please add the following to your /etc/default/tor and restart service:$RESETCOLOR\n" >&2
+		echo -e "${GREEN}[$RED!${GREEN}]$RED Please add the following to your /etc/default/tor and restart service:$RESETCOLOR" >&2
 		echo -e "${BLUE}#----------------------------------------------------------------------#$RESETCOLOR"
 		echo -e 'RUN_DAEMON="yes"'
-		echo -e "${BLUE}#----------------------------------------------------------------------#$RESETCOLOR\n"
+		echo -e "${BLUE}#----------------------------------------------------------------------#$RESETCOLOR"
 		exit 1
 	fi	
 	
 	# Kill IPv6 services
-	echo -e "\n${GREEN}>>>${BLUE} Stopping IPv6 services...$RESETCOLOR\n"
+	echo -e "${GREEN}>>>${BLUE} Stopping IPv6 services...$RESETCOLOR"
 	sed -i '/^.*\#kali-anonsurf$/d' /etc/sysctl.conf #delete lines containing #kali-anonsurf in /etc/sysctl.conf
 	# add lines to sysctl.conf that will kill ipv6 services
 	echo "net.ipv6.conf.all.disable_ipv6 = 1 #kali-anonsurf" >> /etc/sysctl.conf
 	echo "net.ipv6.conf.default.disable_ipv6=1 #kali-anonsurf" >> /etc/sysctl.conf
 	sysctl -p > /dev/null  # have sysctl reread /etc/sysctl.conf
 
-	echo -e "\n${GREEN}>>>${BLUE} Starting anonymous mode...$RESETCOLOR\n"
+	echo -e "${GREEN}>>>${BLUE} Starting anonymous mode...$RESETCOLOR"
 	
 	if [ ! -e /var/run/tor/tor.pid ]; then
-		echo -e "$RED>>>${BLUE} Tor is not running. Starting...$RESETCOLOR\n" >&2
+		echo -e "$RED>>>${BLUE} Tor is not running. Starting...$RESETCOLOR" >&2
 		service network-manager force-reload > /dev/null 2>&1
 		killall dnsmasq > /dev/null 2>&1
 		killall nscd > /dev/null 2>&1	
@@ -155,7 +155,7 @@ function start {
 	fi
 	if ! [ -f /etc/network/iptables.rules ]; then
 		iptables-save > /etc/network/iptables.rules
-		echo -e "${GREEN}[${BLUE}i${GREEN}]${BLUE} Saved iptables rules.$RESETCOLOR\n"
+		echo -e "${GREEN}[${BLUE}i${GREEN}]${BLUE} Saved iptables rules.$RESETCOLOR"
 	fi
 	
 	iptables -F
@@ -166,12 +166,12 @@ function start {
 		cp /etc/resolv.conf /etc/resolv.conf.bak
 		touch /etc/resolv.conf
 		echo -e 'nameserver 127.0.0.1\nnameserver 209.222.18.222\nnameserver 209.222.18.218' > /etc/resolv.conf
-		echo -e "${GREEN}[${BLUE}i${GREEN}]${BLUE} Modified resolv.conf to use Tor and Private Internet Access DNS."
+		echo -e "${GREEN}[${BLUE}i${GREEN}]${BLUE} Modified resolv.conf to use Tor and Private Internet Access DNS.$RESETCOLOR"
 	else
 		cp /etc/resolvconf/resolv.conf.d/head{,.bak}
-                echo -e 'nameserver 127.0.0.1\nnameserver 209.222.18.222\nnameserver 209.222.18.218' >> /etc/resolvconf/resolv.conf.d/head
-                echo -e "${GREEN}[${BLUE}i${GREEN}]${BLUE} Modified resolvconf to use localhost and Private Internet Access DNS.$RESETCOLOR\n"
-                resolvconf -u
+        echo -e 'nameserver 127.0.0.1\nnameserver 209.222.18.222\nnameserver 209.222.18.218' >> /etc/resolvconf/resolv.conf.d/head
+        echo -e "${GREEN}[${BLUE}i${GREEN}]${BLUE} Modified resolvconf to use localhost and Private Internet Access DNS.$RESETCOLOR"
+        resolvconf -u
 	fi
 
 	# set iptables nat
@@ -206,8 +206,8 @@ function start {
 	iptables -A OUTPUT -m owner --uid-owner $TOR_UID -j ACCEPT
 	iptables -A OUTPUT -j REJECT
 
-	echo -e "${GREEN}[${BLUE}i${GREEN}]${BLUE} All traffic was redirected through Tor.$RESETCOLOR\n"
-	echo -e "${GREEN}[${BLUE}i${GREEN}]${BLUE} You are under AnonSurf tunnel!$RESETCOLOR\n"
+	echo -e "${GREEN}[${BLUE}i${GREEN}]${BLUE} All traffic was redirected through Tor.$RESETCOLOR"
+	echo -e "${GREEN}[${BLUE}i${GREEN}]${BLUE} You are under AnonSurf tunnel!$RESETCOLOR"
 }
 
 
@@ -217,14 +217,14 @@ function start {
 function stop {
 	# Make sure only root can run our script
 	if [ $(id -u) -ne 0 ]; then
-		echo -e "\n${GREEN}[$RED!${GREEN}] $RED This script must be run as root.$RESETCOLOR\n" >&2
+		echo -e "${GREEN}[$RED!${GREEN}] $RED This script must be run as root.$RESETCOLOR" >&2
 		exit 1
 	fi
-	echo -e "\n${GREEN}>>>${BLUE} Stopping anonymous mode...$RESETCOLOR\n"
+	echo -e "${GREEN}>>>${BLUE} Stopping anonymous mode...$RESETCOLOR"
 
 	iptables -F
 	iptables -t nat -F
-	echo -e "${GREEN}[${BLUE}i${GREEN}]${BLUE} Deleted all iptables rules.\n$RESETCOLOR"
+	echo -e "${GREEN}[${BLUE}i${GREEN}]${BLUE} Deleted all iptables rules.$RESETCOLOR"
 	
 	if [ -f /etc/network/iptables.rules ]; then
 		iptables-restore < /etc/network/iptables.rules
@@ -246,7 +246,7 @@ function stop {
 	
 	service tor stop
 	
-	echo -e "\n${GREEN}>>>${BLUE} Reenabling IPv6 services...$RESETCOLOR\n"
+	echo -e "${GREEN}>>>${BLUE} Reenabling IPv6 services...$RESETCOLOR"
 
 	# reenable IPv6 services
 	sed -i '/^.*\#kali-anonsurf$/d' /etc/sysctl.conf #delete lines containing #kali-anonsurf in /etc/sysctl.conf
@@ -256,13 +256,13 @@ function stop {
 	service nscd start > /dev/null 2>&1
 	service dnsmasq start > /dev/null 2>&1
 	
-	echo -e "${GREEN}[${BLUE}i${GREEN}]${BLUE} Anonymous mode stopped.$RESETCOLOR\n"
+	echo -e "${GREEN}[${BLUE}i${GREEN}]${BLUE} Anonymous mode stopped.$RESETCOLOR"
 }
 
 function change {
 	service tor reload
 	sleep 2
-	echo -e "${GREEN}[${BLUE}i${GREEN}]${BLUE} Tor daemon reloaded and forced to change nodes.$RESETCOLOR\n"
+	echo -e "${GREEN}[${BLUE}i${GREEN}]${BLUE} Tor daemon reloaded and forced to change nodes.$RESETCOLOR"
 }
 
 function status {
@@ -302,13 +302,10 @@ case "$1" in
 echo -e "
 AnonSurf Module
 	Usage:
-	$RED┌──[${GREEN}$USER$YELLOW@${BLUE}`hostname`$RED]─[${GREEN}$PWD$RED]
-	$RED└──╼ \$${GREEN}"" anonsurf $RED{${GREEN}""start$RED|${GREEN}""stop$RED|${GREEN}""restart$RED|${GREEN}""change$RED""$RED|${GREEN}""status$RED""}
+	anonsurf $RED{${GREEN}""start$RED|${GREEN}""stop$RED|${GREEN}""restart$RED|${GREEN}""change$RED""$RED|${GREEN}""status$RED""}
 	
-	$RED start${BLUE} -${GREEN} Start system-wide anonymous
-		  tunneling under TOR proxy through iptables	  
-	$RED stop${BLUE} -${GREEN} Reset original iptables settings
-		  and return to clear navigation
+	$RED start${BLUE} -${GREEN} Start system-wide anonymous tunneling under TOR proxy through iptables	  
+	$RED stop${BLUE} -${GREEN} Reset original iptables settings and return to clear navigation
 	$RED restart${BLUE} -${GREEN} Combines \"stop\" and \"start\" options
 	$RED change${BLUE} -${GREEN} Changes identity restarting TOR
 	$RED status${BLUE} -${GREEN} Check if AnonSurf is working properly
