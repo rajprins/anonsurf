@@ -44,10 +44,18 @@ Usage:
  stopi2p - Stop i2p services
 ```
 
+## Prerequisites  
+In order to get the best IP lookup results, the Python package "xq" should be installed.  
+This is not mandatory though.  
+
+To install xq, run "pip install xq"  
+
+
 ## Installation
 This package comes with an installer that makes things extremely easy:
 
 ```bash
+./build.sh
 ./installer.sh
 ```
 

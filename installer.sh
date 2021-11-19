@@ -25,7 +25,7 @@ apt-get update
 
 
 #### This will ensure you get updates to the repository's GPG key and other dependencies, just in case
-apt-get install -y secure-delete tor i2p geoip-bin i2p-keyring i2p i2p-router libjbigi-jni
+apt-get install -y secure-delete tor i2p geoip-bin i2p-keyring i2p i2p-router libjbigi-jni wget curl
 
 
 ### Configure and install the .deb

@@ -113,10 +113,19 @@ function ip {
 	echo -e "${GREEN}>>>${BLUE} Getting IP address and location...$RESETCOLOR"
 	myip=`curl -s "http://myexternalip.com/raw"`
 	echo "IP Address: ${myip}"
-	if [[ -f /usr/bin/geoiplookup ]] ; then
-	   /usr/bin/geoiplookup ${myip}
+	#
+	if [[ -z "$(command -v xq)" ]] ; then
+		if [[ -f /usr/bin/geoiplookup ]] ; then
+		   /usr/bin/geoiplookup -v ${myip}
+		else
+		   echo "Sorry. could not perform IP lookup. Please make sure packages geoiplookup or xq are installed."
+		fi
+	else
+		curl -s http://api.geoiplookup.net/?query=${myip} | xq
 	fi
+
 }
+
 
 function start {
 	# Make sure only root can run this script
