@@ -32,10 +32,8 @@ NOTE: DO NOT run this as ```service anonsurf $COMMAND```. Run this as ```anonsur
 Usage:
  anonsurf {start|stop|restart|change|status}
 
- start - Start system-wide anonymous
-          tunneling under TOR proxy through iptables
- stop - Reset original iptables settings
-          and return to clear navigation
+ start - Start system-wide anonymous tunneling under TOR proxy through iptables
+ stop - Reset original iptables settings and return to clear navigation
  restart - Combines "stop" and "start" options
  change - Changes identity restarting TOR 
  status - Check if AnonSurf is working properly
@@ -56,7 +54,8 @@ This package comes with an installer that makes things extremely easy:
 
 ```bash
 ./build.sh
-./installer.sh
+sudo ./installer.sh
 ```
 
 Once the installer is complete, you will be able to use both the anonsurf and pandora modules.
+
