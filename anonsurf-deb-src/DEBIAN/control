@@ -1,0 +1,11 @@
+Package: anonsurf
+Version: 1.0.0
+Architecture: all
+Maintainer: rajprins
+Installed-Size: 64
+Depends: secure-delete, tor, i2p, geoip-bin, i2p-keyring, i2p-router, libjbigi-jni, wget, curl
+Recommends:
+Suggests:
+Section: net
+Priority: optional
+Description: Script for anonymous surfing using Tor, for Debian/Ubuntu systems

@@ -10,32 +10,6 @@
 # Short-Description: Transparent Proxy through TOR.
 ### END INIT INFO
 
-# AnonSurf is inspired by the homonimous module of PenMode, developed by the "Pirates' Crew" in
-# order to make it fully compatible with
-# Parrot  OS and other debian-based systems, and it is part of
-# parrot-anon package.
-#
-#
-# Devs:
-# Lorenzo 'EclipseSpark' Faletra <eclipse@frozenbox.org>
-# Lisetta 'Sheireen' Ferrero <sheireen@frozenbox.org>
-# Francesco 'mibofra'/'Eli Aran'/'SimpleSmibs' Bonanno <mibofra@ircforce.tk> <mibofra@frozenbox.org>
-#
-#
-# anonsurf is free software: you can redistribute it and/or
-# modify it under the terms of the GNU General Public License as
-# published by the Free Software Foundation, either version 3 of the
-# License, or (at your option) any later version.
-# You can get a copy of the license at www.gnu.org/licenses
-#
-# anonsurf is distributed in the hope that it will be
-# useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-# General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with Parrot Security OS. If not, see <http://www.gnu.org/licenses/>.
-
 
 export BLUE='\033[1;94m'
 export GREEN='\033[1;92m'
@@ -146,10 +120,10 @@ function start {
 	
 	# Kill IPv6 services
 	echo -e "${GREEN}>>>${BLUE} Stopping IPv6 services...$RESETCOLOR"
-	sed -i '/^.*\#kali-anonsurf$/d' /etc/sysctl.conf #delete lines containing #kali-anonsurf in /etc/sysctl.conf
+	sed -i '/^.*\#anonsurf$/d' /etc/sysctl.conf #delete lines containing #anonsurf in /etc/sysctl.conf
 	# add lines to sysctl.conf that will kill ipv6 services
-	echo "net.ipv6.conf.all.disable_ipv6 = 1 #kali-anonsurf" >> /etc/sysctl.conf
-	echo "net.ipv6.conf.default.disable_ipv6=1 #kali-anonsurf" >> /etc/sysctl.conf
+	echo "net.ipv6.conf.all.disable_ipv6 = 1 #anonsurf" >> /etc/sysctl.conf
+	echo "net.ipv6.conf.default.disable_ipv6=1 #anonsurf" >> /etc/sysctl.conf
 	sysctl -p > /dev/null  # have sysctl reread /etc/sysctl.conf
 
 	echo -e "${GREEN}>>>${BLUE} Starting anonymous mode...$RESETCOLOR"
@@ -258,7 +232,7 @@ function stop {
 	echo -e "${GREEN}>>>${BLUE} Reenabling IPv6 services...$RESETCOLOR"
 
 	# reenable IPv6 services
-	sed -i '/^.*\#kali-anonsurf$/d' /etc/sysctl.conf #delete lines containing #kali-anonsurf in /etc/sysctl.conf
+	sed -i '/^.*\#anonsurf$/d' /etc/sysctl.conf #delete lines containing #anonsurf in /etc/sysctl.conf
 	sysctl -p # have sysctl reread /etc/sysctl.conf
 
 	service network-manager force-reload > /dev/null 2>&1

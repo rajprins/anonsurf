@@ -25,13 +25,14 @@ apt-get update
 
 
 #### This will ensure you get updates to the repository's GPG key and other dependencies, just in case
-apt-get install -y secure-delete tor i2p geoip-bin i2p-keyring i2p i2p-router libjbigi-jni wget curl
-
+apt install -y secure-delete tor i2p geoip-bin i2p-keyring i2p i2p-router libjbigi-jni wget curl
+apt install -y python3-pip
+pip install xq
 
 ### Configure and install the .deb
 # Build the deb package
-dpkg-deb -b kali-anonsurf-deb-src/ kali-anonsurf.deb
+dpkg-deb -b anonsurf-deb-src/ anonsurf.deb
 # Install the packages
-dpkg -i kali-anonsurf.deb || (apt-get -f install && dpkg -i kali-anonsurf.deb) 
+dpkg -i anonsurf.deb || (apt-get -f install && dpkg -i anonsurf.deb) 
 
 exit 0
