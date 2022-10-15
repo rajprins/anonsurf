@@ -27,7 +27,7 @@ TOR_UID="debian-tor"
 TOR_PORT="9040"
 
 # Is resolvconf installed?
-if [[ ! -z `dpkg -l |grep resolvconf` ]]; then 
+if [[ ! -z `dpkg -l |grep resolvconf` ]]; then
 	resolvconf_support=true;
 else
 	resolvconf_support=false;
@@ -37,7 +37,6 @@ fi
 function init {
 	echo -e "${GREEN}>>>${BLUE} Killing caching applications...$RESETCOLOR"
 	killall -q chrome dropbox iceweasel skype icedove thunderbird firefox chromium xchat transmission deluge pidgin pidgin.orig
-	
 	echo -e "${GREEN}>>>${BLUE} Cleaning application caches..."
 	bleachbit -c adobe_reader.cache chromium.cache chromium.current_session chromium.history elinks.history emesene.cache epiphany.cache firefox.url_history flash.cache flash.cookies google_chrome.cache google_chrome.history  links2.history opera.cache opera.search_history opera.url_history &> /dev/null
 }
@@ -46,9 +45,8 @@ function init {
 function starti2p {
 	echo -e "${GREEN}>>>${BLUE} Starting I2P services...$RESETCOLOR"
 	service tor stop
-
 	# Modify DNS settings
-	if [ "$resolvconf_support" = false ] 
+	if [ "$resolvconf_support" = false ]
 	then
 		cp /etc/resolv.conf /etc/resolv.conf.bak;
 		touch /etc/resolv.conf;
@@ -65,12 +63,13 @@ function starti2p {
 	xdg-open 'http://127.0.0.1:7657/home'
 }
 
+
 function stopi2p {
 	echo -e "${GREEN}>>>${BLUE} Stopping I2P services...$RESETCOLOR"
 	sudo -u i2psvc i2prouter stop
-	
+
 	# restore DNS settings
-	if [ "$resolvconf_support" = false ] 
+	if [ "$resolvconf_support" = false ]
 	then
 		if [ -e /etc/resolv.conf.bak ]; then
 			rm /etc/resolv.conf
@@ -107,7 +106,7 @@ function start {
 		echo -e -e "${GREEN}[$RED!${GREEN}] $RED This script must be run as root.$RESETCOLOR" >&2
 		exit 1
 	fi
-	
+
 	# Check defaults for Tor
 	grep -q -x 'RUN_DAEMON="yes"' /etc/default/tor
 	if [ $? -ne 0 ]; then
@@ -116,8 +115,7 @@ function start {
 		echo -e 'RUN_DAEMON="yes"'
 		echo -e "${BLUE}#----------------------------------------------------------------------#$RESETCOLOR"
 		exit 1
-	fi	
-	
+        fi
 	# Kill IPv6 services
 	echo -e "${GREEN}>>>${BLUE} Stopping IPv6 services...$RESETCOLOR"
 	sed -i '/^.*\#anonsurf$/d' /etc/sysctl.conf #delete lines containing #anonsurf in /etc/sysctl.conf

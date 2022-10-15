@@ -18,18 +18,18 @@ set -e
 #
 
 function bomb {
-    echo "starting Pandora's box "
-    sleep 5
+	echo "starting Parrot Pandora's box "
+	sleep 5
     echo "Pandora is dropping caches"
     echo 1024 > /proc/sys/vm/min_free_kbytes
     echo 3  > /proc/sys/vm/drop_caches
     echo 1  > /proc/sys/vm/oom_kill_allocating_task
     echo 1  > /proc/sys/vm/overcommit_memory
     echo 0  > /proc/sys/vm/oom_dump_tasks
-    echo "Pandora is bombing RAM..."
+    echo "Pandora is bombing RAM"
     sdmem -fllv
     echo " - RAM bombed"
-    echo "Closing Pandora's box"
+    echo "closing Parrot Pandora's box"
 }
 
 
