@@ -1,37 +1,46 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+BLUE='\033[1;94m'
+GREEN='\033[1;92m'
+RED='\033[1;91m'
+RESETCOLOR='\033[1;00m'
+APTSRC="/etc/apt/sources.list.d/i2p.list"
+KEYFILE="/tmp/i2p-archive-keyring.gpg"
 
 
-### Ensure we are being ran as root
 if [ $(id -u) -ne 0 ]; then
-	echo "Sorry, this script must be ran as root"
+	echo;echo -e "${RED}Sorry, you must be root to run this script.${RESETCOLOR}";echo
 	exit 1
 fi
 
 
-### For upgrades and sanity check, remove any existing i2p.list file
-rm -f /etc/apt/sources.list.d/i2p.list
+echo;echo -e "${GREEN}>>> Installing dependencies.${RESETCOLOR}"
+apt update
+apt install -y apt-transport-https lsb-release curl
 
 
-### Compile the i2p ppa
-echo "deb https://deb.i2p2.de/ unstable main" > /etc/apt/sources.list.d/i2p.list # Default config reads repos from sources.list.d
-wget https://geti2p.net/_static/i2p-debian-repo.key.asc --no-check-certificate  -O /tmp/i2p-debian-repo.key.asc # Get the latest i2p repo pubkey
-apt-key add /tmp/i2p-debian-repo.key.asc # Import the key
-rm /tmp/i2p-debian-repo.key.asc # delete the temp key
-apt-get update # Update repos
+echo;echo -e "${GREEN}>>> Adding I2P repo to APT sources.${RESETCOLOR}"
+if [[ -f ${APTSRC} ]] ; then
+   rm -f ${APTSRC}
+fi
+echo "deb https://deb.i2p2.de/ unstable main" | tee /etc/apt/sources.list.d/i2p.list
+curl -o ${KEYFILE} https://geti2p.net/_static/i2p-archive-keyring.gpg
+cp ${KEYFILE} /usr/share/keyrings
 
 
-#### This will ensure you get updates to the repository's GPG key and other dependencies, just in case
-apt install -y secure-delete tor i2p geoip-bin i2p-keyring i2p-router libjbigi-jni wget curl
-apt-get -f install # resolves anything else in a broken state
-apt install -y python3-pip
-pip install xq
+echo;echo -e "${GREEN}>>> Installing Anonsurf dependencies.${RESETCOLOR}"
+apt-get update
+apt install -y tor i2p i2p-keyring i2p-router secure-delete libjbigi-jni xq bleachbit
+apt --fix-broken install 
 
 
-### Build and install the .deb package
-dpkg-deb -b anonsurf-deb-src/ anonsurf.deb
-dpkg -i anonsurf.deb || (apt-get -f install && dpkg -i anonsurf.deb) 
+echo;echo -e "${GREEN}>>> Building package anonsurf.deb.${RESETCOLOR}"
+dpkg-deb -b anonsurf-deb-src/ /tmp/anonsurf.deb
 
 
-### Bye
+echo;echo -e "${GREEN}>>> Installing Anonsurf.${RESETCOLOR}"
+dpkg -i /tmp/anonsurf.deb || (apt-get -f install && dpkg -i /tmp/anonsurf.deb) 
+
+
 echo "All done."
 exit 0

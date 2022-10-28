@@ -34,6 +34,12 @@ else
 fi
 
 
+
+#-----------------------------------------------------------------------------
+# Functions
+#-----------------------------------------------------------------------------
+
+### Stopping common apps and deleting history/cookies/caches etc
 function init {
 	echo -e "${GREEN}>>>${BLUE} Killing caching applications...$RESETCOLOR"
 	killall -q chrome dropbox iceweasel skype icedove thunderbird firefox chromium xchat transmission deluge pidgin pidgin.orig
@@ -42,6 +48,7 @@ function init {
 }
 
 
+### Starting I2P services
 function starti2p {
 	echo -e "${GREEN}>>>${BLUE} Starting I2P services...$RESETCOLOR"
 	service tor stop
@@ -64,6 +71,7 @@ function starti2p {
 }
 
 
+### Stopping I2P services and restoring DNS resolution settings
 function stopi2p {
 	echo -e "${GREEN}>>>${BLUE} Stopping I2P services...$RESETCOLOR"
 	sudo -u i2psvc i2prouter stop
@@ -82,24 +90,27 @@ function stopi2p {
 }
 
 
+### Show IP address information
 function ip {
-	echo -e "${GREEN}>>>${BLUE} Getting IP address and location...$RESETCOLOR"
+	echo -e "${GREEN}>>>${BLUE} Getting IP address...$RESETCOLOR"
 	myip=`curl -s "http://myexternalip.com/raw"`
 	echo "IP Address: ${myip}"
 	#
-	if [[ -z "$(command -v xq)" ]] ; then
-		if [[ -f /usr/bin/geoiplookup ]] ; then
-		   /usr/bin/geoiplookup -v ${myip}
-		else
-		   echo "Sorry. could not perform IP lookup. Please make sure packages geoiplookup or xq are installed."
-		fi
+	if [[ -z "$(command -v curl)" ]] ; then
+		echo "Error: curl command not installed. Cannot retrieve IP geo details"
 	else
-		curl -s http://api.geoiplookup.net/?query=${myip} | xq
+		echo -e "${GREEN}>>>${BLUE} Getting geo location for IP address...$RESETCOLOR"
+		if [[ -z "$(command -v xq)" ]] ; then
+			curl -s curl -s http://ip-api.com/xml/${myip}
+		else
+			curl -s curl -s http://ip-api.com/xml/${myip} | xq
+		fi
 	fi
 
 }
 
 
+### Start Tor service and route rules
 function start {
 	# Make sure only root can run this script
 	if [ $(id -u) -ne 0 ]; then
@@ -192,9 +203,7 @@ function start {
 }
 
 
-
-
-
+### Stop Tor service and route rules
 function stop {
 	# Make sure only root can run our script
 	if [ $(id -u) -ne 0 ]; then
@@ -240,15 +249,27 @@ function stop {
 	echo -e "${GREEN}[${BLUE}i${GREEN}]${BLUE} Anonymous mode stopped.$RESETCOLOR"
 }
 
+
+### Reload Tor
 function change {
 	service tor reload
 	sleep 2
 	echo -e "${GREEN}[${BLUE}i${GREEN}]${BLUE} Tor daemon reloaded and forced to change nodes.$RESETCOLOR"
 }
 
+
+### Show Tor's service status
 function status {
 	service tor status
 }
+
+
+
+
+#-----------------------------------------------------------------------------
+# Main section
+#-----------------------------------------------------------------------------
+
 
 case "$1" in
 	start)
