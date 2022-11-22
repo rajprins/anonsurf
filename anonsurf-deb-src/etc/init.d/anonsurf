@@ -318,21 +318,21 @@ case "$1" in
 	;;
    *)
 		echo -e "
-		AnonSurf Module
-			Usage:
-			anonsurf $RED{${GREEN}""start$RED|${GREEN}""stop$RED|${GREEN}""restart$RED|${GREEN}""change$RED""$RED|${GREEN}""status$RED""}
-			
-			$RED start${BLUE} -${GREEN} Start system-wide anonymous tunneling under TOR proxy through iptables	  
-			$RED stop${BLUE} -${GREEN} Reset original iptables settings and return to clear navigation
-			$RED restart${BLUE} -${GREEN} Combines \"stop\" and \"start\" options
-			$RED change${BLUE} -${GREEN} Changes identity restarting TOR
-			$RED status${BLUE} -${GREEN} Check if AnonSurf is working properly
-			$RED ip${BLUE} -${GREEN} Show your current IP address
-			----[ I2P related features ]----
-			$RED starti2p${BLUE} -${GREEN} Start i2p services
-			$RED stopi2p${BLUE} -${GREEN} Stop i2p services
-			
-		${RESETCOLOR}" >&2
+AnonSurf anonymous browsing service
+	Usage:
+	anonsurf $RED{${GREEN}""start$RED|${GREEN}""stop$RED|${GREEN}""restart$RED|${GREEN}""change$RED""$RED|${GREEN}""status$RED""}
+
+	$RED start${BLUE} -${GREEN} Start system-wide anonymous tunneling under TOR proxy through iptables
+	$RED stop${BLUE} -${GREEN} Reset original iptables settings and return to clear navigation
+	$RED restart${BLUE} -${GREEN} Combines \"stop\" and \"start\" options
+	$RED change${BLUE} -${GREEN} Changes identity restarting TOR
+	$RED status${BLUE} -${GREEN} Check if AnonSurf is working properly
+	$RED ip${BLUE} -${GREEN} Show your current IP address
+	----[ I2P related features ]----
+	$RED starti2p${BLUE} -${GREEN} Start i2p services
+	$RED stopi2p${BLUE} -${GREEN} Stop i2p services
+
+${RESETCOLOR}" >&2
 		exit 1
 		;;
 esac

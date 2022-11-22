@@ -72,7 +72,7 @@ Once the installer is complete, you will be able to use Anonsurf on both command
 Alternatively, download the latest Anonsurf release and install it using `apt` or `dpkg`.
 
 
-## Using Anonsurf
+## Using Anonsurf (GUI)
 The easiest way to use Anonsurf is launching the GUI version and selecting an option from the main window.
 ![Action](https://github.com/rajprins/anonsurf/raw/master/images/Main.png)  
 
@@ -81,3 +81,15 @@ To start anonymous browsing, select action "start" and click the OK button.
 
 When starting an action like starting or stopping the anonymous service, a progress bar will be displayed. Click the OK button after completion to close the dialog.  
 ![progress](https://github.com/rajprins/anonsurf/raw/master/images/Stopping.png)
+
+At any time, you can verify your IP address (and geo location details for that IP address) using the "status" option.
+![status](https://github.com/rajprins/anonsurf/raw/master/images/Status.png)
+
+## Using Anonsurf (command line)
+Anonsurf comes with a terminal version and a GUI version.  
+To launch Anonsurf from command line, using the following command: `sudo anonsurf <ACTION>`  
+*Note: anonsurf must be run as root, or using 'sudo'*  
+
+The available actions are the same as in the GUI version.  
+To get an overview of available actions, simply run `anonsurf`  
+![anonsurf-cli](https://github.com/rajprins/anonsurf/raw/master/images/anonsurf-cli.png)
