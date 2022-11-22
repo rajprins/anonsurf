@@ -14,9 +14,9 @@ if [ $(id -u) -ne 0 ]; then
 fi
 
 
-echo;echo -e "${GREEN}>>> Installing dependencies.${RESETCOLOR}"
-apt update
-apt install -y apt-transport-https lsb-release curl
+#echo;echo -e "${GREEN}>>> Installing dependencies.${RESETCOLOR}"
+#apt update
+#apt install -y apt-transport-https curl wget
 
 
 echo;echo -e "${GREEN}>>> Adding I2P repo to APT sources.${RESETCOLOR}"
@@ -28,10 +28,10 @@ curl -o ${KEYFILE} https://geti2p.net/_static/i2p-archive-keyring.gpg
 cp ${KEYFILE} /usr/share/keyrings
 
 
-echo;echo -e "${GREEN}>>> Installing Anonsurf dependencies.${RESETCOLOR}"
-apt-get update
-apt install -y tor i2p i2p-keyring i2p-router secure-delete libjbigi-jni xq bleachbit
-apt --fix-broken install 
+#echo;echo -e "${GREEN}>>> Installing Anonsurf dependencies.${RESETCOLOR}"
+#apt-get update
+#apt install -y tor i2p i2p-keyring i2p-router secure-delete wget xq bleachbit
+#apt --fix-broken install 
 
 
 echo;echo -e "${GREEN}>>> Building package anonsurf.deb.${RESETCOLOR}"
@@ -39,7 +39,7 @@ dpkg-deb -b anonsurf-deb-src/ /tmp/anonsurf.deb
 
 
 echo;echo -e "${GREEN}>>> Installing Anonsurf.${RESETCOLOR}"
-dpkg -i /tmp/anonsurf.deb || (apt-get -f install && dpkg -i /tmp/anonsurf.deb) 
+#dpkg -i /tmp/anonsurf.deb || (apt-get -f install && dpkg -i /tmp/anonsurf.deb) 
 
 
 echo "All done."

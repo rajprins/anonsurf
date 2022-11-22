@@ -11,11 +11,7 @@ set -e
 # Short-Description: Open Parrot Pandora's box and clean the RAM.
 ### END INIT INFO
 
-#
-# Lorenzo "EclipseSpark" Faletra <eclipse@frozenbox.org>
-#         Parrot Security OS www.parrotsec.org
-#                      GNU/GPL v3
-#
+
 
 function bomb {
     echo "starting Pandora's box "
