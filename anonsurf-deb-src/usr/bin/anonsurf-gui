@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+
+
+export PASSWD=$(zenity --password)
+
+while true
+do
+    STATUS=$(systemctl is-active tor)
+    IP=$(wget -qO- eth0.me)
+    MESSAGE="** Tor status: ${STATUS} **\n** IP address: ${IP} **"
+
+    ### Main menu, displaying Tor actions
+    action=$(zenity --list \
+        --text="${MESSAGE}\n\nSelect the desired action from the list below"\
+        --title "Anonsurf" \
+        --radiolist \
+        --column "Selected" \
+        --column "Action"\
+        --column "Description" \
+            FALSE "start"    "Start the anonymous browsing service"\
+            FALSE "stop"     "Stop the anonymous browsing service"\
+            FALSE "change"   "Change Tor exit node"\
+            FALSE "starti2p" "Start I2P services" \
+            FALSE "stopi2p"  "Stop I2P services" \
+            True  "status"   "Display current IP address details"\
+        --height=400 \
+        --width=500)
+        
+    if [ $? = 0 ]; then
+        case "$action" in
+            status)
+                /etc/init.d/anonsurf ipinfo > /tmp/ip
+                zenity --text-info --title="IP address details" --filename=/tmp/ip --width=400 --height=500
+                ;;
+            start)
+                (echo $PASSWD | sudo -S /etc/init.d/anonsurf start) | zenity --progress --title="Anonsurf" --text="Starting anonymous mode..." --percentage=0
+                STATUS=$(systemctl is-active tor)
+                IP=$(wget -qO- eth0.me)
+                MESSAGE="Anonsurf notification\nAnonymous mode enabled\n- Tor status: ${STATUS}\n- IP address: ${IP}"
+                zenity --notification --text="${MESSAGE}"
+                ;;
+            stop)
+                (echo $PASSWD | sudo -S /etc/init.d/anonsurf stop) | zenity --progress --title="Anonsurf" --text="Stopping anonymous mode..." --percentage=0
+                STATUS=$(systemctl is-active tor)
+                IP=$(wget -qO- eth0.me)
+                MESSAGE="Anonsurf notification\nAnonymous mode stopped\n- Tor status: ${STATUS}\n- IP address: ${IP}"
+                zenity --notification --text="${MESSAGE}"
+                ;;
+            change)
+                (echo $PASSWD | sudo -S /etc/init.d/anonsurf change) | zenity --progress --title="Anonsurf" --text="Changing Tor nodes..." --percentage=0
+                MESSAGE="Anonsurf\nTor daemon reloaded and forced to change nodes"
+                zenity --notification --text="${MESSAGE}"
+                ;;
+            starti2p)
+                (echo $PASSWD | sudo -S /etc/init.d/anonsurf starti2p) | zenity --progress --title="Anonsurf" --text="Starting I2P mode..." --percentage=0
+                STATUS=$(systemctl is-active tor)
+                IP=$(wget -qO- eth0.me)
+                MESSAGE="I2P service started\n- Tor status: ${STATUS}\n- IP address: ${IP}"
+                zenity --notification --text="${MESSAGE}"
+                ;;
+            stopi2p)
+                (echo $PASSWD | sudo -S /etc/init.d/anonsurf stopi2p) | zenity --progress --title="Anonsurf" --text="Stopping I2P mode..." --percentage=0
+                STATUS=$(systemctl is-active tor)
+                IP=$(wget -qO- eth0.me)
+                MESSAGE="I2P service stopped\n- Tor status: ${STATUS}\n- IP address: ${IP}"
+                zenity --notification --text="${MESSAGE}"
+                ;;
+        esac
+    else 
+        break ;
+    fi
+done
+
+
+exit 0;

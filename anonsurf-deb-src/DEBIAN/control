@@ -3,7 +3,7 @@ Version: 1.0.0
 Architecture: all
 Maintainer: rajprins
 Installed-Size: 64
-Depends: secure-delete, tor, i2p, i2p-keyring, i2p-router, libjbigi-jni, curl, bleachbit
+Depends: secure-delete, tor, i2p, i2p-keyring, i2p-router, libjbigi-jni, curl, bleachbit, zenity
 Recommends:
 Suggests:
 Section: net

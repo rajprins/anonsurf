@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Categories=Network
+Name=Anonsurf
+Comment=Privacy
+Exec=/usr/bin/anonsurf-gui
+Icon=/usr/share/pixmaps/anonsurf.png 
+Terminal=false
