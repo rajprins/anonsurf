@@ -88,8 +88,14 @@ At any time, you can verify your IP address (and geo location details for that I
 ## Using Anonsurf (command line)
 Anonsurf comes with a terminal version and a GUI version.  
 To launch Anonsurf from command line, using the following command: `sudo anonsurf <ACTION>`  
-*Note: anonsurf must be run as root, or using 'sudo'*  
+*Note: Anonsurf must be run as root, or using 'sudo'*  
 
 The available actions are the same as in the GUI version.  
 To get an overview of available actions, simply run `anonsurf`  
 ![anonsurf-cli](https://github.com/rajprins/anonsurf/raw/master/images/anonsurf-cli.png)
+
+To start the Anonsurf services, type `sudo anonsurf start`. This will start the browsing service and redirect all traffic to anonymize it.  
+![anonsurf-start](https://github.com/rajprins/anonsurf/raw/master/images/anonsurf-start.png)
+
+After starting the anonymous mode, you can check your new IP address and geolocation details by running `sudo anonsurf ip` from command line.  
+![anonsurf-ip](https://github.com/rajprins/anonsurf/raw/master/images/anonsurf-ip.png)  
