@@ -1,16 +1,18 @@
 # Anonsurf
 
+![Screenshot](https://github.com/rajprins/anonsurf/raw/master/images/anonsurf.png)
+
 ParrotSec's anonsurf and stealth, ported to work with Debian/Ubuntu systems. Now with a simple GUI wrapper for your convenience. 
 
 Modifications have been made to use the DNS servers of Private Internet Access (instead of FrozenDNS), and fixes for users who don't use the resolvconf application. 
 
-NOTE: This will likely work with most Debian/Ubuntu systems, but this has only been testing on Kali Linux.
+NOTE: This will work on most Debian/Ubuntu systems, but this has only been tested on Kali Linux.
 
 ## How to use this repo
 
 This repo contains the sources of Anonsurf, which can be compiled into a .deb package. Once compiled, you can install the deb package using a package manager or the ```dpkg``` or ```apt``` commands.
 
-The easiest way to get this working is to just run the installer. See the installation section for further info.
+The easiest way to get this working is to just run the installer. See the [installation](https://github.com/rajprins/anonsurf#installation) section for further info.
 
 
 ## Usage
@@ -55,28 +57,11 @@ Usage:
 Anonsurf has a number of depdencies, which will mostly be resolved by your package manager.
 However, Anonsurf also depends on I2P (the Invisible Internet Project, an anonymous network layer). You may have to add the I2P repos to your system, which can be done manually, or by running the supplied install script.
 
-Manual installation steps for I2P:
-
-1) Open a terminal and enter:  
-```bash
-sudo apt-add-repository ppa:i2p-maintainers/i2p
-```  
-This command will add the PPA to /etc/apt/sources.list.d and fetch the gpg key that the repository has been signed with. The GPG key ensures that the packages have not been tampered with since being built.
-
-2) Notify your package manager of the new PPA by entering:  
-```bash
-sudo apt-get update
-```  
-This command will retrieve the latest list of software from each repository that is enabled on your system, including the I2P PPA that was added with the earlier command.
-
-3) You are now ready to install Anonsurf and I2P!  
-```bash
-sudo apt-get install i2p
-```
+Steps for manual installation of I2P on Debian/Ubuntu systems can be found [here](https://geti2p.net/en/download/debian)
 
 
 ## Installation
-Anonsurf comes with an installer that care of adding the I2P repos and building the deb file.
+Anonsurf comes with an installer that takes care of adding the I2P repos, building the deb file and installing it. Please note this must be done with root permissions.
 
 ```bash
 sudo ./installer.sh
@@ -84,4 +69,15 @@ sudo ./installer.sh
 
 Once the installer is complete, you will be able to use Anonsurf on both command line and GUI.
 
+Alternatively, download the latest Anonsurf release and install it using `apt` or `dpkg`.
 
+
+## Using Anonsurf
+The easiest way to use Anonsurf is launching the GUI version and selecting an option from the main window.
+![Action](https://github.com/rajprins/anonsurf/raw/master/images/Main.png)  
+
+To start anonymous browsing, select action "start" and click the OK button.
+![start](https://github.com/rajprins/anonsurf/raw/master/images/Actions.png)
+
+When starting an action like starting or stopping the anonymous service, a progress bar will be displayed. Click the OK button after completion to close the dialog.  
+![progress](https://github.com/rajprins/anonsurf/raw/master/images/Stopping.png)
