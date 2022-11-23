@@ -99,9 +99,9 @@ function ip {
 	else
 		echo -e "${GREEN}>>>${BLUE} Geo location details${RESETCOLOR}"
 		if [[ -z "$(command -v xq)" ]] ; then
-			curl -s curl -s http://ip-api.com/xml/${myip}
+			curl -s curl -s http://ip-api.com/xml/${myip}?fields=135161
 		else
-			curl -s curl -s http://ip-api.com/xml/${myip} | xq
+			curl -s curl -s http://ip-api.com/xml/${myip}?fields=135161 | xq
 		fi
 	fi
 }
@@ -109,15 +109,11 @@ function ip {
 
 ### Show IP address information
 function ipinfo {
-   myip=`curl -s "http://myexternalip.com/raw"`
-   echo "IP Address:"
-   echo "${myip}"
-   #
    if [[ -z "$(command -v curl)" ]] ; then
       echo "Error: curl command not installed. Cannot retrieve IP geo details"
    else
-      echo "Geo location details:"
-		curl -s http://ip-api.com/line/${myip}
+   	myip=`curl -s "http://myexternalip.com/raw"`
+		curl -s http://ip-api.com/xml/${myip}?fields=143353
    fi
 }
 

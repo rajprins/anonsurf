@@ -22,13 +22,13 @@ do
             FALSE "change"   "Change Tor exit node"\
             FALSE "starti2p" "Start I2P services" \
             FALSE "stopi2p"  "Stop I2P services" \
-            True  "status"   "Display current IP address details"\
+            True  "info"     "Display current IP address details"\
         --height=400 \
         --width=500)
         
     if [ $? = 0 ]; then
         case "$action" in
-            status)
+            info)
                 /etc/init.d/anonsurf ipinfo > /tmp/ip
                 zenity --text-info --title="IP address details" --filename=/tmp/ip --width=400 --height=500
                 ;;
