@@ -2,6 +2,11 @@
 
 
 export PASSWD=$(zenity --password)
+if [ -z $PASSWD ] ; then
+    # No password entered...
+    exit 1
+fi
+
 
 while true
 do

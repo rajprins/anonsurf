@@ -171,7 +171,7 @@ function start {
 		echo -e "${GREEN}[${BLUE}i${GREEN}]${BLUE} Modified resolv.conf to use Tor and Private Internet Access DNS.${RESETCOLOR}"
 	else
 		cp /etc/resolvconf/resolv.conf.d/head{,.bak}
-      echo -e 'nameserver 127.0.0.1\nnameserver 209.222.18.222\nnameserver 209.222.18.218' >> /etc/resolvconf/resolv.conf.d/head
+      echo -e 'nameserver 127.0.0.1\nnameserver 209.222.18.222\nnameserver 209.222.18.218' > /etc/resolvconf/resolv.conf.d/head
       echo -e "${GREEN}[${BLUE}i${GREEN}]${BLUE} Modified resolvconf to use localhost and Private Internet Access DNS.${RESETCOLOR}"
       resolvconf -u
 	fi
