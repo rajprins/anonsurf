@@ -91,7 +91,8 @@ function stopi2p {
 ### Show IP address information
 function ip {
 	echo -e "${GREEN}>>>${BLUE} Getting IP address${RESETCOLOR}"
-	myip=`curl -s "http://myexternalip.com/raw"`
+	myip=`curl ifconfig.me`
+
 	echo "IP Address: ${myip}"
 	#
 	if [[ -z "$(command -v curl)" ]] ; then
