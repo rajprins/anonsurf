@@ -3,7 +3,7 @@
 if [ $(id -u) -ne 0 ]; then
     export PASSWD=$(zenity --password)
     if [ -z $PASSWD ] ; then
-        # No password entered...
+        echo "Error: no password entered. Aborting..."
         exit 1
     fi
 fi
@@ -12,7 +12,7 @@ fi
 while true
 do
     STATUS=$(systemctl is-active tor)
-    IP=$(wget -qO- eth0.me)
+    IP=$(curl ifconfig.me)
     MESSAGE="** Tor status: ${STATUS} **\n** IP address: ${IP} **"
 
     ### Main menu, displaying Tor actions
@@ -41,7 +41,7 @@ do
             start)
                 (echo $PASSWD | sudo -S /etc/init.d/anonsurf start) | zenity --progress --title="Anonsurf" --text="Starting anonymous mode..." --percentage=0
                 STATUS=$(systemctl is-active tor)
-                IP=$(wget -qO- eth0.me)
+                IP=$(curl ifconfig.me)
                 MESSAGE="Anonsurf notification\nAnonymous mode enabled\n- Tor status: ${STATUS}\n- IP address: ${IP}"
                 zenity --notification --text="${MESSAGE}"
                 ;;
