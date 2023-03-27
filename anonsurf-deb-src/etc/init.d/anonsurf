@@ -40,7 +40,7 @@ fi
 #-----------------------------------------------------------------------------
 
 ### Stop common apps and deleting history/cookies/caches etc
-function init {
+function cleanup {
 	echo -e "${GREEN}>>>${BLUE} Killing caching applications${RESETCOLOR}"
 	killall -q chrome dropbox iceweasel skype icedove thunderbird firefox chromium xchat transmission deluge pidgin pidgin.orig
 	echo -e "${GREEN}>>>${BLUE} Cleaning application caches"
@@ -91,31 +91,18 @@ function stopi2p {
 ### Show IP address information
 function ip {
 	echo -e "${GREEN}>>>${BLUE} Getting IP address${RESETCOLOR}"
-	myip=`curl ifconfig.me`
-
+	myip=$(curl -s ifconfig.me)
 	echo "IP Address: ${myip}"
 	#
-	if [[ -z "$(command -v curl)" ]] ; then
-		echo "Error: curl command not installed. Cannot retrieve IP geo details"
-	else
-		echo -e "${GREEN}>>>${BLUE} Geo location details${RESETCOLOR}"
-		if [[ -z "$(command -v xq)" ]] ; then
-			curl -s curl -s http://ip-api.com/xml/${myip}?fields=135161
-		else
-			curl -s curl -s http://ip-api.com/xml/${myip}?fields=135161 | xq
-		fi
-	fi
+	echo -e "${GREEN}>>>${BLUE} Geo location details${RESETCOLOR}"
+	curl -s curl -s http://ip-api.com/xml/${myip}?fields=135161
 }
 
 
 ### Show IP address information
 function ipinfo {
-   if [[ -z "$(command -v curl)" ]] ; then
-      echo "Error: curl command not installed. Cannot retrieve IP geo details"
-   else
-   	myip=`curl -s "http://myexternalip.com/raw"`
-		curl -s http://ip-api.com/xml/${myip}?fields=143353
-   fi
+	myip=$(curl -s ifconfig.me)
+	curl -s http://ip-api.com/xml/${myip}?fields=143353
 }
 
 
@@ -274,20 +261,46 @@ function status {
 }
 
 
+function checkDependencies {
+	# Tor
+	if ! [ -x "$(command -v tor)" ]; then
+		echo 'Error: Tor is not installed.' >&2
+		exit 1
+	fi
+	# iptables firewall
+	if ! [ -x "$(command -v iptables)" ]; then
+		echo 'Error: iptables is not installed.' >&2
+		exit 1
+	fi
+	# Bleachbit
+	if ! [ -x "$(command -v bleachbit)" ]; then
+		echo 'Warning: bleachbit is not installed. Anonsurf will not be able to clean up your system.' >&2
+	fi
+	# Curl
+	if ! [ -x "$(command -v curl)" ]; then
+		echo 'Error: Curl is not installed.' >&2
+		exit 1
+	fi
+}
+
 
 
 #-----------------------------------------------------------------------------
 # Main section
 #-----------------------------------------------------------------------------
 
+# Pre-flight checks
+checkDependencies
 
+
+# Main loop
 case "$1" in
 	start)
-		init
+		cleanup
 		start
 	;;
 	stop)
-		init
+		cleanup
 		stop
 	;;
 	change)

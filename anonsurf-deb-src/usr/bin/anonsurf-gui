@@ -1,34 +1,74 @@
 #!/usr/bin/env bash
 
-if [ $(id -u) -ne 0 ]; then
-    export PASSWD=$(zenity --password)
-    if [ -z $PASSWD ] ; then
-        echo "Error: no password entered. Aborting..."
+function checkDependencies {
+    # Tor
+    if ! [ -f /etc/init.d/anonsurf ]; then
+        echo 'Error: Anonsurf CLI is not installed.' >&2
         exit 1
     fi
-fi
+    # Zenity
+    if ! [ -x "$(command -v zenity)" ]; then
+        echo 'Error: Zenity is not installed.' >&2
+        exit 1
+    fi
+    # Curl
+    if ! [ -x "$(command -v curl)" ]; then
+        echo 'Error: Curl is not installed.' >&2
+        exit 1
+    fi
+}
 
 
+function init {
+    # Are we root? If not, ask for sudo password
+    if [ $(id -u) -ne 0 ]; then
+        # sudo without password possible?
+        if sudo -n true ; then
+            # All good
+            echo "User $UID has sudo privileges."
+        else 
+            export PASSWD=$(zenity --password)
+            if [ -z $PASSWD ] ; then
+                echo "Error: no password entered. Aborting..."
+                exit 1
+            fi
+        fi
+    else
+        export ISROOT=true
+    fi
+
+}
+
+
+#-----------------------------------------------------------------------------
+# Main section
+#-----------------------------------------------------------------------------
+
+
+# Pre-flight checks
+init
+checkDependencies
+
+
+# Main loop
 while true
 do
-    STATUS=$(systemctl is-active tor)
-    IP=$(curl ifconfig.me)
-    MESSAGE="** Tor status: ${STATUS} **\n** IP address: ${IP} **"
+    MESSAGE="Tor status: $(systemctl is-active tor)\nIP address: $(curl -s ifconfig.me)"
 
     ### Main menu, displaying Tor actions
     action=$(zenity --list \
-        --text="${MESSAGE}\n\nSelect the desired action from the list below"\
+        --text="${MESSAGE}\n\nSelect the desired action and click OK, or click CANCEL to quit."\
         --title "Anonsurf" \
         --radiolist \
-        --column "Selected" \
+        --column "" \
         --column "Action"\
         --column "Description" \
-            FALSE "start"    "Start the anonymous browsing service"\
-            FALSE "stop"     "Stop the anonymous browsing service"\
-            FALSE "change"   "Change Tor exit node"\
-            FALSE "starti2p" "Start I2P services" \
-            FALSE "stopi2p"  "Stop I2P services" \
-            True  "info"     "Display current IP address details"\
+            TRUE "start" "Start the Tor anonymous browsing service "\
+            FALSE "stop" "Stop the Tor anonymous browsing service"\
+            FALSE "change" "Change public IP address and location"\
+            FALSE "starti2p" "Start I2P service, a fully encrypted private network layer" \
+            FALSE "stopi2p" "Stop I2P service" \
+            FALSE  "info" "Display current IP address details"\
         --height=400 \
         --width=500)
         
@@ -39,17 +79,13 @@ do
                 zenity --text-info --title="IP address details" --filename=/tmp/ip --width=400 --height=500
                 ;;
             start)
-                (echo $PASSWD | sudo -S /etc/init.d/anonsurf start) | zenity --progress --title="Anonsurf" --text="Starting anonymous mode..." --percentage=0
-                STATUS=$(systemctl is-active tor)
-                IP=$(curl ifconfig.me)
-                MESSAGE="Anonsurf notification\nAnonymous mode enabled\n- Tor status: ${STATUS}\n- IP address: ${IP}"
+                (echo $PASSWD | sudo -S /etc/init.d/anonsurf start) | zenity --progress --title="Anonsurf" --text="Starting anonymous browsing mode..." --percentage=0
+                MESSAGE="Anonymous browsing service successfully started\n- Tor status: $(systemctl is-active tor)\n- IP address: $(curl -s ifconfig.me)"
                 zenity --notification --text="${MESSAGE}"
                 ;;
             stop)
-                (echo $PASSWD | sudo -S /etc/init.d/anonsurf stop) | zenity --progress --title="Anonsurf" --text="Stopping anonymous mode..." --percentage=0
-                STATUS=$(systemctl is-active tor)
-                IP=$(wget -qO- eth0.me)
-                MESSAGE="Anonsurf notification\nAnonymous mode stopped\n- Tor status: ${STATUS}\n- IP address: ${IP}"
+                (echo $PASSWD | sudo -S /etc/init.d/anonsurf stop) | zenity --progress --title="Anonsurf" --text="Stopping anonymous browsing mode..." --percentage=0
+                MESSAGE="Anonymous browsing service has been stopped\n- Tor status: $(systemctl is-active tor)\n- IP address: $(curl -s ifconfig.me)"
                 zenity --notification --text="${MESSAGE}"
                 ;;
             change)
@@ -58,17 +94,13 @@ do
                 zenity --notification --text="${MESSAGE}"
                 ;;
             starti2p)
-                (echo $PASSWD | sudo -S /etc/init.d/anonsurf starti2p) | zenity --progress --title="Anonsurf" --text="Starting I2P mode..." --percentage=0
-                STATUS=$(systemctl is-active tor)
-                IP=$(wget -qO- eth0.me)
-                MESSAGE="I2P service started\n- Tor status: ${STATUS}\n- IP address: ${IP}"
+                (echo $PASSWD | sudo -S /etc/init.d/anonsurf starti2p) | zenity --progress --title="Anonsurf" --text="Starting I2P service..." --percentage=0
+                MESSAGE="I2P service successfully started\n- Tor status: $(systemctl is-active tor)\n- IP address: $(curl -s ifconfig.me)"
                 zenity --notification --text="${MESSAGE}"
                 ;;
             stopi2p)
-                (echo $PASSWD | sudo -S /etc/init.d/anonsurf stopi2p) | zenity --progress --title="Anonsurf" --text="Stopping I2P mode..." --percentage=0
-                STATUS=$(systemctl is-active tor)
-                IP=$(wget -qO- eth0.me)
-                MESSAGE="I2P service stopped\n- Tor status: ${STATUS}\n- IP address: ${IP}"
+                (echo $PASSWD | sudo -S /etc/init.d/anonsurf stopi2p) | zenity --progress --title="Anonsurf" --text="Stopping I2P service..." --percentage=0
+                MESSAGE="I2P service has been stopped\n- Tor status: $(systemctl is-active tor)\n- IP address: $(curl -s ifconfig.me)"
                 zenity --notification --text="${MESSAGE}"
                 ;;
         esac
