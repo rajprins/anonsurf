@@ -23,20 +23,14 @@ function init {
     # Are we root? If not, ask for sudo password
     if [ $(id -u) -ne 0 ]; then
         # sudo without password possible?
-        if sudo -n true ; then
-            # All good
-            echo "User $UID has sudo privileges."
-        else 
+        if ! sudo -n true ; then
             export PASSWD=$(zenity --password)
             if [ -z $PASSWD ] ; then
-                echo "Error: no password entered. Aborting..."
+                echo "Error: no password entered. Aborting."
                 exit 1
             fi
         fi
-    else
-        export ISROOT=true
     fi
-
 }
 
 
@@ -53,7 +47,7 @@ checkDependencies
 # Main loop
 while true
 do
-    MESSAGE="Tor status: $(systemctl is-active tor)\nIP address: $(curl -s ifconfig.me)"
+    MESSAGE="Tor status: $(systemctl is-active tor)\nIP address: $(curl -s icanhazip.com)"
 
     ### Main menu, displaying Tor actions
     action=$(zenity --list \
@@ -75,17 +69,17 @@ do
     if [ $? = 0 ]; then
         case "$action" in
             info)
-                /etc/init.d/anonsurf ipinfo > /tmp/ip
+                echo $PASSWD | sudo -S /etc/init.d/anonsurf ipinfo > /tmp/ip
                 zenity --text-info --title="IP address details" --filename=/tmp/ip --width=400 --height=500
                 ;;
             start)
                 (echo $PASSWD | sudo -S /etc/init.d/anonsurf start) | zenity --progress --title="Anonsurf" --text="Starting anonymous browsing mode..." --percentage=0
-                MESSAGE="Anonymous browsing service successfully started\n- Tor status: $(systemctl is-active tor)\n- IP address: $(curl -s ifconfig.me)"
+                MESSAGE="Anonymous browsing service successfully started\n- Tor status: $(systemctl is-active tor)\n- IP address: $(curl -s icanhazip.com)"
                 zenity --notification --text="${MESSAGE}"
                 ;;
             stop)
                 (echo $PASSWD | sudo -S /etc/init.d/anonsurf stop) | zenity --progress --title="Anonsurf" --text="Stopping anonymous browsing mode..." --percentage=0
-                MESSAGE="Anonymous browsing service has been stopped\n- Tor status: $(systemctl is-active tor)\n- IP address: $(curl -s ifconfig.me)"
+                MESSAGE="Anonymous browsing service has been stopped\n- Tor status: $(systemctl is-active tor)\n- IP address: $(curl -s icanhazip.com)"
                 zenity --notification --text="${MESSAGE}"
                 ;;
             change)
@@ -95,12 +89,12 @@ do
                 ;;
             starti2p)
                 (echo $PASSWD | sudo -S /etc/init.d/anonsurf starti2p) | zenity --progress --title="Anonsurf" --text="Starting I2P service..." --percentage=0
-                MESSAGE="I2P service successfully started\n- Tor status: $(systemctl is-active tor)\n- IP address: $(curl -s ifconfig.me)"
+                MESSAGE="I2P service successfully started\n- Tor status: $(systemctl is-active tor)\n- IP address: $(curl -s icanhazip.com)"
                 zenity --notification --text="${MESSAGE}"
                 ;;
             stopi2p)
                 (echo $PASSWD | sudo -S /etc/init.d/anonsurf stopi2p) | zenity --progress --title="Anonsurf" --text="Stopping I2P service..." --percentage=0
-                MESSAGE="I2P service has been stopped\n- Tor status: $(systemctl is-active tor)\n- IP address: $(curl -s ifconfig.me)"
+                MESSAGE="I2P service has been stopped\n- Tor status: $(systemctl is-active tor)\n- IP address: $(curl -s icanhazip.com)"
                 zenity --notification --text="${MESSAGE}"
                 ;;
         esac

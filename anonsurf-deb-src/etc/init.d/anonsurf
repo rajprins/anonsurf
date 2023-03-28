@@ -91,18 +91,18 @@ function stopi2p {
 ### Show IP address information
 function ip {
 	echo -e "${GREEN}>>>${BLUE} Getting IP address${RESETCOLOR}"
-	myip=$(curl -s ifconfig.me)
+	myip=$(curl -s icanhazip.com)
 	echo "IP Address: ${myip}"
 	#
 	echo -e "${GREEN}>>>${BLUE} Geo location details${RESETCOLOR}"
-	curl -s curl -s http://ip-api.com/xml/${myip}?fields=135161
+	curl -s http://ip-api.com/xml/${myip}?fields=4089
 }
 
 
 ### Show IP address information
 function ipinfo {
-	myip=$(curl -s ifconfig.me)
-	curl -s http://ip-api.com/xml/${myip}?fields=143353
+	myip=$(curl -s icanhazip.com)
+	curl -s http://ip-api.com/xml/${myip}?fields=12281
 }
 
 
@@ -283,6 +283,12 @@ function checkDependencies {
 	fi
 }
 
+function init {
+   if [ $(id -u) -ne 0 ]; then
+      echo "Error. Must be run as root or with sudo privileges."
+      exit 1
+   fi
+}
 
 
 #-----------------------------------------------------------------------------
@@ -290,6 +296,7 @@ function checkDependencies {
 #-----------------------------------------------------------------------------
 
 # Pre-flight checks
+init
 checkDependencies
 
 
