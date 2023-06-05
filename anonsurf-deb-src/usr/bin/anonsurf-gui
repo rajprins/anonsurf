@@ -47,14 +47,17 @@ checkDependencies
 # Main loop
 while true
 do
-    MESSAGE="Tor status: $(systemctl is-active tor)\nIP address: $(curl -s icanhazip.com)"
+    MESSAGE="————————————————————————————————————————————\n"
+    MESSAGE+="Tor status: $(systemctl is-active tor)\n"
+    MESSAGE+="IP address: $(curl -s icanhazip.com)\n"
+    MESSAGE+="————————————————————————————————————————————"
 
     ### Main menu, displaying Tor actions
     action=$(zenity --list \
         --text="${MESSAGE}\n\nSelect the desired action and click OK, or click CANCEL to quit."\
-        --title "Anonsurf" \
+        --title "AnonSurf" \
         --radiolist \
-        --column "" \
+        --column "Selected" \
         --column "Action"\
         --column "Description" \
             TRUE "start" "Start the Tor anonymous browsing service "\
@@ -63,8 +66,8 @@ do
             FALSE "starti2p" "Start I2P service, a fully encrypted private network layer" \
             FALSE "stopi2p" "Stop I2P service" \
             FALSE  "info" "Display current IP address details"\
-        --height=400 \
-        --width=500)
+        --height=500 \
+        --width=600)
         
     if [ $? = 0 ]; then
         case "$action" in

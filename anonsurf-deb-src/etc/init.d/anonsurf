@@ -101,8 +101,8 @@ function ip {
 
 ### Show IP address information
 function ipinfo {
-	myip=$(curl -s icanhazip.com)
-	curl -s http://ip-api.com/xml/${myip}?fields=12281
+	MYIP=$(curl -s icanhazip.com)
+	curl -s http://ip-api.com/xml/${MYIP}?fields=12281
 }
 
 
