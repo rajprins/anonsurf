@@ -110,14 +110,14 @@ function ipinfo {
 function start {
 	# Make sure only root can run this script
 	if [ $(id -u) -ne 0 ]; then
-		echo -e -e "${GREEN}[$RED!${GREEN}] $RED This script must be run as root.${RESETCOLOR}" >&2
+		echo -e -e "${GREEN}[${RED}!${GREEN}}] ${RED} Tis script must be run as root.${RESETCOLOR}" >&2
 		exit 1
 	fi
 
 	# Check defaults for Tor
 	grep -q -x 'RUN_DAEMON="yes"' /etc/default/tor
 	if [ $? -ne 0 ]; then
-		echo -e "${GREEN}[$RED!${GREEN}]$RED Please add the following to your /etc/default/tor and restart service:${RESETCOLOR}" >&2
+		echo -e "${GREEN}[${RED}!${GREEN}}]${RED} Pease add the following to your /etc/default/tor and restart service:${RESETCOLOR}" >&2
 		echo -e "${BLUE}#----------------------------------------------------------------------#${RESETCOLOR}"
 		echo -e 'RUN_DAEMON="yes"'
 		echo -e "${BLUE}#----------------------------------------------------------------------#${RESETCOLOR}"
@@ -136,7 +136,7 @@ function start {
 	echo -e "${GREEN}>>>${BLUE} Starting anonymous mode${RESETCOLOR}"
 	
 	if [ ! -e /var/run/tor/tor.pid ]; then
-		echo -e "$RED>>>${BLUE} Tor is not running. Starting${RESETCOLOR}" >&2
+		echo -e "${RED}>>${BLUE} Tor is not running. Starting${RESETCOLOR}" >&2
 		service network-manager force-reload > /dev/null 2>&1
 		killall dnsmasq > /dev/null 2>&1
 		killall nscd > /dev/null 2>&1	
@@ -205,7 +205,7 @@ function start {
 function stop {
 	# Make sure only root can run our script
 	if [ $(id -u) -ne 0 ]; then
-		echo -e "${GREEN}[$RED!${GREEN}] $RED This script must be run as root.${RESETCOLOR}" >&2
+		echo -e "${GREEN}[${RED}!${GREEN}}] ${RED} Tis script must be run as root.${RESETCOLOR}" >&2
 		exit 1
 	fi
 	echo -e "${GREEN}>>>${BLUE} Stopping anonymous mode${RESETCOLOR}"
@@ -285,9 +285,10 @@ function checkDependencies {
 
 function init {
    if [ $(id -u) -ne 0 ]; then
-      echo "Error. Must be run as root or with sudo privileges."
+      echo "Sorry. Must be run as root or with sudo privileges."
       exit 1
    fi
+   clear
 }
 
 
@@ -335,19 +336,23 @@ case "$1" in
 	;;
    *)
 		echo -e "
-AnonSurf anonymous browsing service
-	Usage:
-	anonsurf $RED{${GREEN}""start$RED|${GREEN}""stop$RED|${GREEN}""restart$RED|${GREEN}""change$RED""$RED|${GREEN}""status$RED""}
+${BLUE}~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~${RESETCOLOR}
+${BLUE}AnonSurf - The anonymous browsing service${RESETCOLOR}
+${BLUE}~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~${RESETCOLOR}
 
-	$RED start${BLUE} -${GREEN} Start system-wide anonymous tunneling under TOR proxy through iptables
-	$RED stop${BLUE} -${GREEN} Reset original iptables settings and return to clear navigation
-	$RED restart${BLUE} -${GREEN} Combines \"stop\" and \"start\" options
-	$RED change${BLUE} -${GREEN} Changes identity restarting TOR
-	$RED status${BLUE} -${GREEN} Check if AnonSurf is working properly
-	$RED ip${BLUE} -${GREEN} Show your current IP address
-	----[ I2P related features ]----
-	$RED starti2p${BLUE} -${GREEN} Start i2p services
-	$RED stopi2p${BLUE} -${GREEN} Stop i2p services
+   Usage:
+   anonsurf ${RED}{${GREEN}""start${RED}|${GREEN}""stop${RED}|${GREEN}""restart${RED}|${GREEN}""change${RED}""${RED}|${GREEN}""status${RED}""|${GREEN}""ip${RED}""}
+
+${GREEN}   ----[ TOR features ]----
+${RED}   start${BLUE} -${GREEN} Start system-wide anonymous tunneling under TOR proxy through iptables
+${RED}   stop${BLUE} -${GREEN} Reset original iptables settings and return to clear navigation
+${RED}   restart${BLUE} -${GREEN} Combines \"stop\" and \"start\" options
+${RED}   change${BLUE} -${GREEN} Changes identity restarting TOR
+${RED}   status${BLUE} -${GREEN} Check if AnonSurf is working properly
+${RED}   ip${BLUE} -${GREEN} Show your current IP address
+${GREEN}   ----[ I2P features ]----
+${RED}   starti2p${BLUE} -${GREEN} Start i2p services
+${RED}   stopi2p${BLUE} -${GREEN} Stop i2p services
 
 ${RESETCOLOR}" >&2
 		exit 1
