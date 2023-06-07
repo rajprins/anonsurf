@@ -41,10 +41,13 @@ fi
 
 ### Stop common apps and deleting history/cookies/caches etc
 function cleanup {
+	# Kill processes
 	echo -e "${GREEN}>>>${BLUE} Killing caching applications${RESETCOLOR}"
-	killall -q chrome dropbox iceweasel skype icedove thunderbird firefox chromium xchat transmission deluge pidgin pidgin.orig
+	killall -q chrome dropbox skype icedove thunderbird firefox firefox-esr chromium xchat hexchat transmission steam firejail /usr/lib/firefox-esr/firefox-esr
+	# Remove cache
 	echo -e "${GREEN}>>>${BLUE} Cleaning application caches"
-	bleachbit -c adobe_reader.cache chromium.cache chromium.current_session chromium.history elinks.history emesene.cache epiphany.cache firefox.url_history flash.cache flash.cookies google_chrome.cache google_chrome.history  links2.history opera.cache opera.search_history opera.url_history &> /dev/null
+	bleachbit -c adobe_reader.cache chromium.cache chromium.session chromium.history chromium.form_history elinks.history emesene.cache epiphany.cache firefox.cache firefox.crash_reports firefox.url_history firefox.forms flash.cache flash.cookies google_chrome.cache google_chrome.history google_chrome.form_history google_chrome.search_engines google_chrome.session google_earth.temporary_files links2.history opera.cache opera.form_history opera.history &> /dev/null
+
 }
 
 
@@ -85,6 +88,7 @@ function stopi2p {
 		mv /etc/resolvconf/resolv.conf.d/head{.bak,}
 		resolvconf -u
 	fi
+	cleanup
 }
 
 
@@ -94,6 +98,7 @@ function ip {
 	myip=$(curl -s icanhazip.com)
 	echo "IP Address: ${myip}"
 	#
+	echo
 	echo -e "${GREEN}>>>${BLUE} Geo location details${RESETCOLOR}"
 	curl -s http://ip-api.com/xml/${myip}?fields=4089
 }
@@ -108,12 +113,6 @@ function ipinfo {
 
 ### Start Tor service and route rules
 function start {
-	# Make sure only root can run this script
-	if [ $(id -u) -ne 0 ]; then
-		echo -e -e "${GREEN}[${RED}!${GREEN}}] ${RED} Tis script must be run as root.${RESETCOLOR}" >&2
-		exit 1
-	fi
-
 	# Check defaults for Tor
 	grep -q -x 'RUN_DAEMON="yes"' /etc/default/tor
 	if [ $? -ne 0 ]; then
@@ -203,11 +202,6 @@ function start {
 
 ### Stop Tor service and route rules
 function stop {
-	# Make sure only root can run our script
-	if [ $(id -u) -ne 0 ]; then
-		echo -e "${GREEN}[${RED}!${GREEN}}] ${RED} Tis script must be run as root.${RESETCOLOR}" >&2
-		exit 1
-	fi
 	echo -e "${GREEN}>>>${BLUE} Stopping anonymous mode${RESETCOLOR}"
 
 	iptables -F
