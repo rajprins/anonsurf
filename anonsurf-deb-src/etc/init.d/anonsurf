@@ -51,46 +51,6 @@ function cleanup {
 }
 
 
-### Starting I2P services
-function starti2p {
-	echo -e "${GREEN}>>>${BLUE} Starting I2P services${RESETCOLOR}"
-	service tor stop
-	# Modify DNS settings
-	if [ "$resolvconf_support" = false ]; then
-		cp /etc/resolv.conf /etc/resolv.conf.bak;
-		touch /etc/resolv.conf;
-		echo -e 'nameserver 127.0.0.1\nnameserver 209.222.18.222\nnameserver 209.222.18.218' > /etc/resolv.conf;
-		echo -e "${GREEN}[${BLUE}i${GREEN}]${BLUE} Modified resolv.conf to use localhost and Private Internet Access DNS.${RESETCOLOR}";
-	else
-		cp /etc/resolvconf/resolv.conf.d/head{,.bak};
-		echo -e 'nameserver 127.0.0.1\nnameserver 209.222.18.222\nnameserver 209.222.18.218' >> /etc/resolvconf/resolv.conf.d/head;
-		echo -e "${GREEN}[${BLUE}i${GREEN}]${BLUE} Modified resolvconf to use localhost and Private Internet Access DNS.${RESETCOLOR}";
-		resolvconf -u;
-	fi
-	sudo -u i2psvc i2prouter start
-	sleep 2
-	xdg-open 'http://127.0.0.1:7657/home'
-}
-
-
-### Stopping I2P services and restoring DNS resolution settings
-function stopi2p {
-	echo -e "${GREEN}>>>${BLUE} Stopping I2P services${RESETCOLOR}"
-	sudo -u i2psvc i2prouter stop
-
-	# restore DNS settings
-	if [ "$resolvconf_support" = false ]; then
-		if [ -e /etc/resolv.conf.bak ]; then
-			rm /etc/resolv.conf
-			cp /etc/resolv.conf.bak /etc/resolv.conf
-		fi
-	else
-		mv /etc/resolvconf/resolv.conf.d/head{.bak,}
-		resolvconf -u
-	fi
-	cleanup
-}
-
 
 ### Show IP address information
 function ip {
@@ -317,12 +277,6 @@ case "$1" in
 	ipinfo)
       ipinfo
    ;;
-	starti2p)
-		starti2p
-	;;
-	stopi2p)
-		stopi2p
-	;;
 	restart)
 		$0 stop
 		sleep 1
@@ -344,9 +298,6 @@ ${RED}   restart${BLUE} -${GREEN} Combines \"stop\" and \"start\" options
 ${RED}   change${BLUE} -${GREEN} Changes identity restarting TOR
 ${RED}   status${BLUE} -${GREEN} Check if AnonSurf is working properly
 ${RED}   ip${BLUE} -${GREEN} Show your current IP address
-${GREEN}   ----[ I2P features ]----
-${RED}   starti2p${BLUE} -${GREEN} Start i2p services
-${RED}   stopi2p${BLUE} -${GREEN} Stop i2p services
 
 ${RESETCOLOR}" >&2
 		exit 1

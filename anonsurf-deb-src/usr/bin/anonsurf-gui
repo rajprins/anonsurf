@@ -63,8 +63,6 @@ do
             TRUE "start" "Start the Tor anonymous browsing service "\
             FALSE "stop" "Stop the Tor anonymous browsing service"\
             FALSE "change" "Change public IP address and location"\
-            FALSE "starti2p" "Start I2P service, a fully encrypted private network layer" \
-            FALSE "stopi2p" "Stop I2P service" \
             FALSE  "info" "Display current IP address details"\
         --height=500 \
         --width=600)
@@ -88,16 +86,6 @@ do
             change)
                 (echo $PASSWD | sudo -S /etc/init.d/anonsurf change) | zenity --progress --title="Anonsurf" --text="Changing Tor nodes..." --percentage=0
                 MESSAGE="Anonsurf\nTor daemon reloaded and forced to change nodes"
-                zenity --notification --text="${MESSAGE}"
-                ;;
-            starti2p)
-                (echo $PASSWD | sudo -S /etc/init.d/anonsurf starti2p) | zenity --progress --title="Anonsurf" --text="Starting I2P service..." --percentage=0
-                MESSAGE="I2P service successfully started\n- Tor status: $(systemctl is-active tor)\n- IP address: $(curl -s icanhazip.com)"
-                zenity --notification --text="${MESSAGE}"
-                ;;
-            stopi2p)
-                (echo $PASSWD | sudo -S /etc/init.d/anonsurf stopi2p) | zenity --progress --title="Anonsurf" --text="Stopping I2P service..." --percentage=0
-                MESSAGE="I2P service has been stopped\n- Tor status: $(systemctl is-active tor)\n- IP address: $(curl -s icanhazip.com)"
                 zenity --notification --text="${MESSAGE}"
                 ;;
         esac
