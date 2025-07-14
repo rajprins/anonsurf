@@ -3,11 +3,11 @@ set -e
 ### BEGIN INIT INFO
 # Provides:          pandora-bootparam
 # Required-Start:
-# Required-Stop:        umountroot
+# Required-Stop:     umountroot
 # Should-Start:
-# Should-Stop:          halt reboot
-# Default-Start:        2 3 4 5
-# Default-Stop:         0 1 6
+# Should-Stop:       halt reboot
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
 # Short-Description: Open Parrot Pandora's box and clean the RAM.
 ### END INIT INFO
 

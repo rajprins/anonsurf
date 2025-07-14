@@ -2,11 +2,10 @@
 
 ### BEGIN INIT INFO
 # Provides:          anonsurf
-# Required-Start:
-# Required-Stop:
-# Should-Start:
-# Default-Start:
-# Default-Stop:
+# Required-Start:    $remote_fs $syslog
+# Required-Stop:     $remote_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
 # Short-Description: Transparent Proxy through TOR.
 ### END INIT INFO
 
@@ -43,10 +42,10 @@ fi
 function cleanup {
 	# Kill processes
 	echo -e "${GREEN}>>>${BLUE} Killing caching applications${RESETCOLOR}"
-	killall -q chrome dropbox skype icedove thunderbird firefox firefox-esr chromium xchat hexchat transmission steam firejail /usr/lib/firefox-esr/firefox-esr
+	killall -q chrome brave dropbox skype icedove thunderbird firefox firefox-esr chromium xchat hexchat transmission steam firejail /usr/lib/firefox-esr/firefox-esr
 	# Remove cache
 	echo -e "${GREEN}>>>${BLUE} Cleaning application caches"
-	bleachbit -c adobe_reader.cache chromium.cache chromium.session chromium.history chromium.form_history elinks.history emesene.cache epiphany.cache firefox.cache firefox.crash_reports firefox.url_history firefox.forms flash.cache flash.cookies google_chrome.cache google_chrome.history google_chrome.form_history google_chrome.search_engines google_chrome.session google_earth.temporary_files links2.history opera.cache opera.form_history opera.history &> /dev/null
+	bleachbit -c adobe_reader.cache brave.session brave.history brave.form_history brave.cache chromium.session chromium.history chromium.form_history elinks.history emesene.cache epiphany.cache firefox.cache firefox.crash_reports firefox.url_history firefox.forms flash.cache flash.cookies google_chrome.cache google_chrome.history google_chrome.form_history google_chrome.search_engines google_chrome.session google_earth.temporary_files links2.history opera.cache opera.form_history opera.history &> /dev/null
 
 }
 
@@ -84,16 +83,19 @@ function start {
    fi
 	
 	# Kill IPv6 services
-	echo -e "${GREEN}>>>${BLUE} Stopping IPv6 services${RESETCOLOR}"
-	sed -i '/^.*\#anonsurf$/d' /etc/sysctl.conf #delete lines containing #anonsurf in /etc/sysctl.conf
-	
+	echo -e "${GREEN}>>>${BLUE} Disabling IPv6${RESETCOLOR}"
+	if [ -f /etc/sysctl.conf ] ; then
+		# delete lines containing #anonsurf in /etc/sysctl.conf
+		sed -i '/^.*\#anonsurf$/d' /etc/sysctl.conf 
+	fi
 	# add lines to sysctl.conf that will kill ipv6 services
 	echo "net.ipv6.conf.all.disable_ipv6 = 1 #anonsurf" >> /etc/sysctl.conf
 	echo "net.ipv6.conf.default.disable_ipv6=1 #anonsurf" >> /etc/sysctl.conf
-	sysctl -p > /dev/null  # have sysctl reread /etc/sysctl.conf
+	# have sysctl reread /etc/sysctl.conf
+	sysctl -p > /dev/null  
+	
 
 	echo -e "${GREEN}>>>${BLUE} Starting anonymous mode${RESETCOLOR}"
-	
 	if [ ! -e /var/run/tor/tor.pid ]; then
 		echo -e "${RED}>>${BLUE} Tor is not running. Starting${RESETCOLOR}" >&2
 		service network-manager force-reload > /dev/null 2>&1
@@ -273,9 +275,6 @@ case "$1" in
 	;;
 	myip|ip)
 		ip
-	;;
-	ipinfo)
-      ipinfo
    ;;
 	restart)
 		$0 stop

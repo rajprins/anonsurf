@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 #
-# Dependencies: tor secure-delete curl wget xq bleachbit zenity
+# Dependencies: tor secure-delete curl wget xq bleachbit zenity iptables
 
 
 
@@ -22,27 +22,14 @@ echo;echo -e "${GREEN}>>> Detected distribution: ${DISTRO}${RESETCOLOR}"
 
 echo;echo -e "${GREEN}>>> Installing dependencies${RESETCOLOR}"
 
-### Ubuntu
-if [ $DISTRO == "ubuntu" ]; then
-	apt install tor secure-delete curl wget xq bleachbit zenity iptables iptables-persistent
-#### Debian(-based) systems
-elif [ $DISTRO == "debian" ]; then
-	apt install tor secure-delete curl wget xq bleachbit zenity iptables iptables-persistent
-### Downstream Debian, like Kali
-elif [ $DISTRO == "kali" ]; then
+### Ubuntu/Debian/Kali, all fine
+if [ $DISTRO == "ubuntu" || $DISTRO == "debian" || $DISTRO == "kali" ]; then
 	apt install tor secure-delete curl wget xq bleachbit zenity iptables iptables-persistent
 else
-	echo "Unsupported Linux distro: $DISTRO. Exiting..."
+	# Not fine
+	echo "Error: unsupported Linux distro: $DISTRO. Please consider using Debian. Exiting..."
 	exit 1
 fi
-
-
-echo;echo -e "${GREEN}>>> Building package anonsurf.deb${RESETCOLOR}"
-dpkg-deb -b anonsurf-deb-src/ /tmp/anonsurf.deb
-
-
-#echo;echo -e "${GREEN}>>> Installing Anonsurf${RESETCOLOR}"
-#dpkg -i /tmp/anonsurf.deb || (apt-get -f install && dpkg -i /tmp/anonsurf.deb) 
 
 
 echo "All done."
