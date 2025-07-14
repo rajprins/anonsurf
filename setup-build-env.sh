@@ -24,13 +24,13 @@ echo;echo -e "${GREEN}>>> Installing dependencies${RESETCOLOR}"
 
 ### Ubuntu
 if [ $DISTRO == "ubuntu" ]; then
-	apt install tor secure-delete curl wget xq bleachbit zenity
+	apt install tor secure-delete curl wget xq bleachbit zenity iptables iptables-persistent
 #### Debian(-based) systems
 elif [ $DISTRO == "debian" ]; then
-	apt install tor secure-delete curl wget xq bleachbit zenity
+	apt install tor secure-delete curl wget xq bleachbit zenity iptables iptables-persistent
 ### Downstream Debian, like Kali
 elif [ $DISTRO == "kali" ]; then
-	apt install tor secure-delete curl wget xq bleachbit zenity
+	apt install tor secure-delete curl wget xq bleachbit zenity iptables iptables-persistent
 else
 	echo "Unsupported Linux distro: $DISTRO. Exiting..."
 	exit 1
