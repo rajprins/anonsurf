@@ -1,8 +1,10 @@
 [Desktop Entry]
+Version=1.0
+Name=Anonsurf
 Type=Application
 Categories=Network
-Name=Anonsurf
-Comment=Privacy
+Comment=Anonymous browsing service using Tor
 Exec=/usr/bin/anonsurf-gui
-Icon=/usr/share/pixmaps/anonsurf.png 
+Icon=anonsurf
 Terminal=false
+StartupNotify=true

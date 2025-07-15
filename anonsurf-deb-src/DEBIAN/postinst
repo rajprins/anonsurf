@@ -5,3 +5,7 @@ fi
 if [ -e /etc/tor/torrc.anon ]; then
    mv /etc/tor/torrc.anon /etc/tor/torrc
 fi
+
+if [ command -v gtk-update-icon-cache ; then
+   gtk-update-icon-cache /usr/share/icons/hicolor
+fi
