@@ -3,7 +3,7 @@ Version: 1.0.3
 Architecture: all
 Maintainer: rajprins
 Installed-Size: 64
-Depends: tor, curl, bleachbit, zenity, iptables, iptables-persistent
+Depends: tor, curl, bleachbit, zenity, iptables, iptables-persistent, secure-delete
 Recommends:
 Suggests:
 Section: net
