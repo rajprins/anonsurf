@@ -3,9 +3,9 @@ Version: 1.0.3
 Architecture: all
 Maintainer: rajprins
 Installed-Size: 64
-Depends: secure-delete, tor, curl, bleachbit, zenity
+Depends: tor, curl, bleachbit, zenity, iptables, iptables-persistent
 Recommends:
 Suggests:
 Section: net
 Priority: optional
-Description: Script and simple GUI for anonymous surfing using Tor, for Debian/Ubuntu systems
+Description: Script and simple GUI wrapper for anonymous surfing using Tor and I2P, for Debian/Ubuntu systems

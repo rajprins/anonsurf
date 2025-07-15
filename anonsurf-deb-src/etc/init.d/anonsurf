@@ -26,7 +26,7 @@ TOR_UID="debian-tor"
 TOR_PORT="9040"
 
 # Is resolvconf installed?
-if [[ ! -z `dpkg -l |grep resolvconf` ]]; then
+if [[ ! -z `dpkg -l | grep resolvconf` ]]; then
 	resolvconf_support=true;
 else
 	resolvconf_support=false;
@@ -41,14 +41,12 @@ fi
 ### Stop common apps and deleting history/cookies/caches etc
 function cleanup {
 	# Kill processes
-	echo -e "${GREEN}>>>${BLUE} Killing caching applications${RESETCOLOR}"
+	echo -e "${GREEN}>>>${BLUE} Killing running applications${RESETCOLOR}"
 	killall -q chrome brave dropbox skype icedove thunderbird firefox firefox-esr chromium xchat hexchat transmission steam firejail /usr/lib/firefox-esr/firefox-esr
-	# Remove cache
+	# Remove caches
 	echo -e "${GREEN}>>>${BLUE} Cleaning application caches"
 	bleachbit -c adobe_reader.cache brave.session brave.history brave.form_history brave.cache chromium.session chromium.history chromium.form_history elinks.history emesene.cache epiphany.cache firefox.cache firefox.crash_reports firefox.url_history firefox.forms flash.cache flash.cookies google_chrome.cache google_chrome.history google_chrome.form_history google_chrome.search_engines google_chrome.session google_earth.temporary_files links2.history opera.cache opera.form_history opera.history &> /dev/null
-
 }
-
 
 
 ### Show IP address information
@@ -59,14 +57,14 @@ function ip {
 	#
 	echo
 	echo -e "${GREEN}>>>${BLUE} Geo location details${RESETCOLOR}"
-	curl -s http://ip-api.com/xml/${myip}?fields=4089
+	curl -s http://ip-api.com/xml/${myip}?fields=17960957
 }
 
 
-### Show IP address information
+### Show IP address information (for GUI wrapper)
 function ipinfo {
 	MYIP=$(curl -s icanhazip.com)
-	curl -s http://ip-api.com/xml/${MYIP}?fields=12281
+	curl -s http://ip-api.com/xml/${MYIP}?fields=17960957
 }
 
 
@@ -97,7 +95,7 @@ function start {
 
 	echo -e "${GREEN}>>>${BLUE} Starting anonymous mode${RESETCOLOR}"
 	if [ ! -e /var/run/tor/tor.pid ]; then
-		echo -e "${RED}>>${BLUE} Tor is not running. Starting${RESETCOLOR}" >&2
+		echo -e "${RED}>>${BLUE} Tor is not running. Starting...${RESETCOLOR}" >&2
 		service network-manager force-reload > /dev/null 2>&1
 		killall dnsmasq > /dev/null 2>&1
 		killall nscd > /dev/null 2>&1	
@@ -131,21 +129,21 @@ function start {
 	iptables -t nat -A OUTPUT -p tcp --dport 53 -j REDIRECT --to-ports 53
 	iptables -t nat -A OUTPUT -p udp -m owner --uid-owner $TOR_UID -m udp --dport 53 -j REDIRECT --to-ports 53
 	
-	#resolve .onion domains mapping 10.192.0.0/10 address space
+	# resolve .onion domains mapping 10.192.0.0/10 address space
 	iptables -t nat -A OUTPUT -p tcp -d 10.192.0.0/10 -j REDIRECT --to-ports 9040
 	iptables -t nat -A OUTPUT -p udp -d 10.192.0.0/10 -j REDIRECT --to-ports 9040
 	
-	#exclude local addresses
+	# exclude local addresses
 	for NET in $TOR_EXCLUDE 127.0.0.0/9 127.128.0.0/10; do
 		iptables -t nat -A OUTPUT -d $NET -j RETURN
 	done
 	
-	#redirect all other output through TOR
+	# redirect all other output through TOR
 	iptables -t nat -A OUTPUT -p tcp --syn -j REDIRECT --to-ports $TOR_PORT
 	iptables -t nat -A OUTPUT -p udp -j REDIRECT --to-ports $TOR_PORT
 	iptables -t nat -A OUTPUT -p icmp -j REDIRECT --to-ports $TOR_PORT
 	
-	#accept already established connections
+	# accept already established connections
 	iptables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 	
 	#exclude local addresses
@@ -153,7 +151,7 @@ function start {
 		iptables -A OUTPUT -d $NET -j ACCEPT
 	done
 	
-	#allow only tor output
+	# allow only tor output
 	iptables -A OUTPUT -m owner --uid-owner $TOR_UID -j ACCEPT
 	iptables -A OUTPUT -j REJECT
 
@@ -273,8 +271,11 @@ case "$1" in
 	status)
 		status
 	;;
-	myip|ip)
+	ip)
 		ip
+   ;;
+	ipinfo)
+      ipinfo
    ;;
 	restart)
 		$0 stop
@@ -283,14 +284,13 @@ case "$1" in
 	;;
    *)
 		echo -e "
-${BLUE}~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~${RESETCOLOR}
+${BLUE}-----------------------------------------${RESETCOLOR}
 ${BLUE}AnonSurf - The anonymous browsing service${RESETCOLOR}
-${BLUE}~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~${RESETCOLOR}
+${BLUE}-----------------------------------------${RESETCOLOR}
 
    Usage:
    anonsurf ${RED}{${GREEN}""start${RED}|${GREEN}""stop${RED}|${GREEN}""restart${RED}|${GREEN}""change${RED}""${RED}|${GREEN}""status${RED}""|${GREEN}""ip${RED}""}
 
-${GREEN}   ----[ TOR features ]----
 ${RED}   start${BLUE} -${GREEN} Start system-wide anonymous tunneling under TOR proxy through iptables
 ${RED}   stop${BLUE} -${GREEN} Reset original iptables settings and return to clear navigation
 ${RED}   restart${BLUE} -${GREEN} Combines \"stop\" and \"start\" options

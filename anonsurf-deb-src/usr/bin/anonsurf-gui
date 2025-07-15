@@ -6,9 +6,9 @@ function checkDependencies {
         echo 'Error: Anonsurf CLI is not installed.' >&2
         exit 1
     fi
-    # Zenity
+    # zenity
     if ! [ -x "$(command -v zenity)" ]; then
-        echo 'Error: Zenity is not installed.' >&2
+        echo 'Error: zenity is not installed.' >&2
         exit 1
     fi
     # Curl
