@@ -29,47 +29,62 @@ After installing, Anonsurf-gui can be started from a terminal, using the followi
 ```
 /usr/bin/anonsurf-gui
 ```
-Alternatively, you can launch anonsurf-gui from a launcher. The main desktop environments (KDE, Gnome, XFCE etc) will have a launcher icon in the menu structure.
+Alternatively, you can launch anonsurf-gui from a launcher. The main desktop environments (KDE, Gnome, XFCE etc) should have a launcher icon in the menu structure.
 
 
 
 ### Anonsurf (CLI)
-Anonsurf will anonymize the entire system under TOR using IPTables. It will also allow you to start and stop i2p as well.
+Anonsurf will anonymize the entire system under TOR using IPTables.
 
 NOTE: DO NOT run this as ```service anonsurf $COMMAND```. Run this as ```anonsurf $COMMAND```
 
 ```bash
+-----------------------------------------
+AnonSurf - The anonymous browsing service
+-----------------------------------------
+
 Usage:
- anonsurf {start|stop|restart|change|status}
+   anonsurf {start|stop|restart|change|status|ip}
 
- start - Start system-wide anonymous tunneling under TOR proxy through iptables
- stop - Reset original iptables settings and return to clear navigation
- restart - Combines "stop" and "start" options
- change - Changes identity restarting TOR 
- status - Check if AnonSurf is working properly
- ip - Show current IP address details
-----[ I2P related features ]----
- starti2p - Start i2p services
- stopi2p - Stop i2p services
+   start - Start system-wide anonymous tunneling under TOR proxy through iptables
+   stop - Reset original iptables settings and return to clear navigation
+   restart - Combines "stop" and "start" options
+   change - Changes identity restarting TOR
+   status - Check if AnonSurf is working properly
+   ip - Show your current IP address
 ```
-
-## Prerequisites  
-Anonsurf has a number of depdencies, which will mostly be resolved by your package manager.
-However, Anonsurf also depends on I2P (the Invisible Internet Project, an anonymous network layer). You may have to add the I2P repos to your system, which can be done manually, or by running the supplied install script.
-
-Steps for manual installation of I2P on Debian/Ubuntu systems can be found [here](https://geti2p.net/en/download/debian)
-
 
 ## Installation
-Anonsurf comes with an installer that takes care of adding the I2P repos, building the deb file and installing it. Please note this must be done with root permissions.
+Anonsurf comes with installer scripts that takes care of adding dependencies, building the deb file and installing it. Please note this must all be done with root permissions.
+
+
+### Prerequisites  
+Anonsurf has a number of depdencies, which will mostly (but not all!) be resolved by your package manager.
+Therefe, it is highly recommended to install dependencies BEFORE installing Anonsurf itself. Use the following script to install the dependencies:
 
 ```bash
-sudo ./installer.sh
+sudo ./00-install-deps.sh
 ```
 
-Once the installer is complete, you will be able to use Anonsurf on both command line and GUI.
 
-Alternatively, download the latest Anonsurf release and install it using `apt` or `dpkg`.
+### AnonSurf Installation
+Important: make sure you have installed all dependencies BEFORE installing AnonSurf.
+
+First, create a new package:
+```bash
+./01-build.sh
+```
+
+This will create a new file called `anonsurf.deb`.
+Next, you can install Anonsurf using the provided install script:
+```bash
+sudo ./02-install.sh
+```
+
+Alternatively, download the latest Anonsurf release and install it using `apt` or `dpkg`.  
+
+
+Once the installer is complete, you will be able to use Anonsurf on both command line and GUI.  
 
 
 ## Using Anonsurf (GUI)
