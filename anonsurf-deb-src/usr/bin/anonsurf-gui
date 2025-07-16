@@ -70,23 +70,36 @@ do
     if [ $? = 0 ]; then
         case "$action" in
             info)
+                TITLE="IP address details"
                 echo $PASSWD | sudo -S /etc/init.d/anonsurf ipinfo > /tmp/ip
-                zenity --text-info --title="IP address details" --filename=/tmp/ip --width=400 --height=500
+                zenity --text-info --title="${TITLE}" --filename=/tmp/ip --width=400 --height=500
                 ;;
             start)
-                (echo $PASSWD | sudo -S /etc/init.d/anonsurf start) | zenity --progress --title="Anonsurf" --text="Starting anonymous browsing mode..." --percentage=0
-                MESSAGE="Anonymous browsing service successfully started\n- Tor status: $(systemctl is-active tor)\n- IP address: $(curl -s icanhazip.com)"
-                zenity --notification --text="${MESSAGE}"
+                TITLE="AnonSurf"
+                MESSAGE="You are about to start the anonymous browsing service.\n\nAny active browsers will be closed and cache files deleted.\n\nDo you wish to continue?"
+                zenity --question --text="${MESSAGE}" --title="${TITLE}"
+                if [ $? = 0 ]; then
+                    (echo $PASSWD | sudo -S /etc/init.d/anonsurf start) | zenity --progress --title="${TITLE}" --text="Starting anonymous browsing mode..." --percentage=0
+                    MESSAGE="Anonymous browsing service successfully started\n- Tor status: $(systemctl is-active tor)\n- IP address: $(curl -s icanhazip.com)"
+                    zenity --notification --title="${TITLE}" --text="${MESSAGE}"
+                fi
                 ;;
             stop)
-                (echo $PASSWD | sudo -S /etc/init.d/anonsurf stop) | zenity --progress --title="Anonsurf" --text="Stopping anonymous browsing mode..." --percentage=0
-                MESSAGE="Anonymous browsing service has been stopped\n- Tor status: $(systemctl is-active tor)\n- IP address: $(curl -s icanhazip.com)"
-                zenity --notification --text="${MESSAGE}"
+                TITLE="AnonSurf"
+                MESSAGE="You are about to stop anonymous browsing.\n\nAny active browsers will be closed and cache files deleted.\n\nDo you wish to continue?"
+                if [ $? = 0 ]; then
+                    zenity --question --text="${MESSAGE}" --title="${TITLE}"
+                    (echo $PASSWD | sudo -S /etc/init.d/anonsurf stop) | zenity --progress --title="${TITLE}" --text="Stopping anonymous browsing mode..." --percentage=0
+                    MESSAGE="Anonymous browsing service has been stopped\n- Tor status: $(systemctl is-active tor)\n- IP address: $(curl -s icanhazip.com)"
+                    zenity --notification --title="${TITLE}" --text="${MESSAGE}"
+                fi
                 ;;
             change)
-                (echo $PASSWD | sudo -S /etc/init.d/anonsurf change) | zenity --progress --title="Anonsurf" --text="Changing Tor nodes..." --percentage=0
+                TITLE="AnonSurf"
+                MESSAGE="Changing Tor nodes..."
+                (echo $PASSWD | sudo -S /etc/init.d/anonsurf change) | zenity --progress --title="${TITLE}" --text="${MESSAGE}" --percentage=0
                 MESSAGE="Anonsurf\nTor daemon reloaded and forced to change nodes"
-                zenity --notification --text="${MESSAGE}"
+                zenity --notification --title="${TITLE}" --text="${MESSAGE}"
                 ;;
         esac
     else 

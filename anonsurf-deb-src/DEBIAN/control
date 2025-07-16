@@ -1,8 +1,7 @@
 Package: anonsurf
-Version: 1.0.3
+Version: 1.0.4
 Architecture: all
 Maintainer: rajprins
-Installed-Size: 64
 Depends: tor, curl, bleachbit, zenity, iptables, iptables-persistent, secure-delete
 Recommends:
 Suggests:
