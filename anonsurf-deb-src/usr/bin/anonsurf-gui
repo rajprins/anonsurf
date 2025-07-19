@@ -34,6 +34,29 @@ function init {
 }
 
 
+function read_dom () {
+    local IFS=\>
+    read -d \< ENTITY CONTENT
+    local RET=$?
+    return $RET
+}
+
+function showIPinfo {
+    local TITLE="IP address details"
+    local FILE=/tmp/ip-parsed
+    echo $PASSWD | sudo -S /etc/init.d/anonsurf ipinfo | tail -n +3 | head -n -1 > /tmp/ip
+    if [[ -f $FILE ]] ; then
+        rm $FILE
+    fi
+    while read_dom; do
+    if [[ $(echo $CONTENT | wc -c) > 1 ]] ; then
+        echo "${ENTITY}: ${CONTENT}" >> /tmp/ip-parsed
+    fi
+    done < /tmp/ip
+    zenity --text-info --title="${TITLE}" --filename=/tmp/ip-parsed --width=400 --height=500
+}
+
+
 #-----------------------------------------------------------------------------
 # Main section
 #-----------------------------------------------------------------------------
@@ -70,9 +93,7 @@ do
     if [ $? = 0 ]; then
         case "$action" in
             info)
-                TITLE="IP address details"
-                echo $PASSWD | sudo -S /etc/init.d/anonsurf ipinfo > /tmp/ip
-                zenity --text-info --title="${TITLE}" --filename=/tmp/ip --width=400 --height=500
+                showIPinfo
                 ;;
             start)
                 TITLE="AnonSurf"
@@ -80,8 +101,8 @@ do
                 zenity --question --text="${MESSAGE}" --title="${TITLE}"
                 if [ $? = 0 ]; then
                     (echo $PASSWD | sudo -S /etc/init.d/anonsurf start) | zenity --progress --title="${TITLE}" --text="Starting anonymous browsing mode..." --percentage=0
-                    MESSAGE="Anonymous browsing service successfully started\n- Tor status: $(systemctl is-active tor)\n- IP address: $(curl -s icanhazip.com)"
-                    zenity --notification --title="${TITLE}" --text="${MESSAGE}"
+                    MESSAGE="Anonymous browsing service has been started.\nTor status: $(systemctl is-active tor) | IP address: $(curl -s icanhazip.com)"
+                    zenity --notification --text="${MESSAGE}"
                 fi
                 ;;
             stop)
@@ -90,8 +111,8 @@ do
                 if [ $? = 0 ]; then
                     zenity --question --text="${MESSAGE}" --title="${TITLE}"
                     (echo $PASSWD | sudo -S /etc/init.d/anonsurf stop) | zenity --progress --title="${TITLE}" --text="Stopping anonymous browsing mode..." --percentage=0
-                    MESSAGE="Anonymous browsing service has been stopped\n- Tor status: $(systemctl is-active tor)\n- IP address: $(curl -s icanhazip.com)"
-                    zenity --notification --title="${TITLE}" --text="${MESSAGE}"
+                    MESSAGE="Anonymous browsing service has been stopped.\nTor status: $(systemctl is-active tor) | IP address: $(curl -s icanhazip.com)"
+                    zenity --notification --text="${MESSAGE}"
                 fi
                 ;;
             change)
@@ -99,7 +120,7 @@ do
                 MESSAGE="Changing Tor nodes..."
                 (echo $PASSWD | sudo -S /etc/init.d/anonsurf change) | zenity --progress --title="${TITLE}" --text="${MESSAGE}" --percentage=0
                 MESSAGE="Anonsurf\nTor daemon reloaded and forced to change nodes"
-                zenity --notification --title="${TITLE}" --text="${MESSAGE}"
+                zenity --notification --text="${MESSAGE}"
                 ;;
         esac
     else 
