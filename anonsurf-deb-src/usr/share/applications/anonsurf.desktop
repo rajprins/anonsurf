@@ -1,10 +1,10 @@
 [Desktop Entry]
-Version=1.0
+Version=1.1.0
 Name=Anonsurf
 Type=Application
 Categories=Network
 Comment=Anonymous browsing service using Tor
-Exec=/usr/bin/anonsurf-gui.py
+Exec=/usr/bin/anonsurf-gui
 Icon=anonsurf
 Terminal=false
 StartupNotify=true

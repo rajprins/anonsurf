@@ -46,7 +46,6 @@ if ! command -v python3 &> /dev/null; then
     exit 1
 fi
 
-
 #if ! command -v pip3 &> /dev/null; then
 #    echo "Error: pip3 is not installed. Please install pip3 first."
 #    exit 1
