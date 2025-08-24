@@ -1,132 +1,413 @@
-#!/usr/bin/env bash
+#!/usr/bin/env python3
 
-function checkDependencies {
-    # Tor
-    if ! [ -f /etc/init.d/anonsurf ]; then
-        echo 'Error: Anonsurf CLI is not installed.' >&2
-        exit 1
-    fi
-    # zenity
-    if ! [ -x "$(command -v zenity)" ]; then
-        echo 'Error: zenity is not installed.' >&2
-        exit 1
-    fi
-    # Curl
-    if ! [ -x "$(command -v curl)" ]; then
-        echo 'Error: Curl is not installed.' >&2
-        exit 1
-    fi
-}
+import sys
+import os
+import subprocess
+import json
+import xml.etree.ElementTree as ET
+import requests
+from PyQt6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QTextEdit, QProgressBar, QMessageBox, QWidget, QFrame, QGroupBox, QInputDialog, QLineEdit)
+from PyQt6.QtCore import QThread, pyqtSignal, QTimer, Qt, QDateTime
+from PyQt6.QtGui import QFont, QIcon, QPixmap
 
-
-function init {
-    # Are we root? If not, ask for sudo password
-    if [ $(id -u) -ne 0 ]; then
-        # sudo without password possible?
-        if ! sudo -n true ; then
-            export PASSWD=$(zenity --password)
-            if [ -z $PASSWD ] ; then
-                echo "Error: no password entered. Aborting."
-                exit 1
-            fi
-        fi
-    fi
-}
-
-
-function read_dom () {
-    local IFS=\>
-    read -d \< ENTITY CONTENT
-    local RET=$?
-    return $RET
-}
-
-function showIPinfo {
-    local TITLE="IP address details"
-    local FILE=/tmp/ip-parsed
-    echo $PASSWD | sudo -S /etc/init.d/anonsurf ipinfo | tail -n +3 | head -n -1 > /tmp/ip
-    if [[ -f $FILE ]] ; then
-        rm $FILE
-    fi
-    while read_dom; do
-    if [[ $(echo $CONTENT | wc -c) > 1 ]] ; then
-        echo "${ENTITY}: ${CONTENT}" >> /tmp/ip-parsed
-    fi
-    done < /tmp/ip
-    zenity --text-info --title="${TITLE}" --filename=/tmp/ip-parsed --width=400 --height=500
-}
-
-
-#-----------------------------------------------------------------------------
-# Main section
-#-----------------------------------------------------------------------------
-
-
-# Pre-flight checks
-init
-checkDependencies
-
-
-# Main loop
-while true
-do
-    MESSAGE="————————————————————————————————————————————\n"
-    MESSAGE+="Tor status: $(systemctl is-active tor)\n"
-    MESSAGE+="IP address: $(curl -s icanhazip.com)\n"
-    MESSAGE+="————————————————————————————————————————————"
-
-    ### Main menu, displaying Tor actions
-    action=$(zenity --list \
-        --text="${MESSAGE}\n\nSelect the desired action and click OK, or click CANCEL to quit."\
-        --title "AnonSurf" \
-        --radiolist \
-        --column "Selected" \
-        --column "Action"\
-        --column "Description" \
-            TRUE "start" "Start the Tor anonymous browsing service "\
-            FALSE "stop" "Stop the Tor anonymous browsing service"\
-            FALSE "change" "Change public IP address and location"\
-            FALSE  "info" "Display current IP address details"\
-        --height=500 \
-        --width=600)
+class AnonSurfWorker(QThread):
+    """Worker thread for running AnonSurf commands"""
+    progress = pyqtSignal(str)
+    finished = pyqtSignal(bool, str)
+    
+    def __init__(self, command, sudo_password=None):
+        super().__init__()
+        self.command = command
+        self.sudo_password = sudo_password
         
-    if [ $? = 0 ]; then
-        case "$action" in
-            info)
-                showIPinfo
-                ;;
-            start)
-                TITLE="AnonSurf"
-                MESSAGE="You are about to start the anonymous browsing service.\n\nAny active browsers will be closed and cache files deleted.\n\nDo you wish to continue?"
-                zenity --question --text="${MESSAGE}" --title="${TITLE}"
-                if [ $? = 0 ]; then
-                    (echo $PASSWD | sudo -S /etc/init.d/anonsurf start) | zenity --progress --title="${TITLE}" --text="Starting anonymous browsing mode..." --percentage=0
-                    MESSAGE="Anonymous browsing service has been started.\nTor status: $(systemctl is-active tor) | IP address: $(curl -s icanhazip.com)"
-                    zenity --notification --text="${MESSAGE}"
-                fi
-                ;;
-            stop)
-                TITLE="AnonSurf"
-                MESSAGE="You are about to stop anonymous browsing.\n\nAny active browsers will be closed and cache files deleted.\n\nDo you wish to continue?"
-                if [ $? = 0 ]; then
-                    zenity --question --text="${MESSAGE}" --title="${TITLE}"
-                    (echo $PASSWD | sudo -S /etc/init.d/anonsurf stop) | zenity --progress --title="${TITLE}" --text="Stopping anonymous browsing mode..." --percentage=0
-                    MESSAGE="Anonymous browsing service has been stopped.\nTor status: $(systemctl is-active tor) | IP address: $(curl -s icanhazip.com)"
-                    zenity --notification --text="${MESSAGE}"
-                fi
-                ;;
-            change)
-                TITLE="AnonSurf"
-                MESSAGE="Changing Tor nodes..."
-                (echo $PASSWD | sudo -S /etc/init.d/anonsurf change) | zenity --progress --title="${TITLE}" --text="${MESSAGE}" --percentage=0
-                MESSAGE="Anonsurf\nTor daemon reloaded and forced to change nodes"
-                zenity --notification --text="${MESSAGE}"
-                ;;
-        esac
-    else 
-        break ;
-    fi
-done
+    def run(self):
+        try:
+            if self.sudo_password:
+                # Use sudo with password
+                process = subprocess.Popen(
+                    ['sudo', '-S', '/etc/init.d/anonsurf', self.command],
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+                stdout, stderr = process.communicate(input=self.sudo_password + '\n')
+            else:
+                # Try without password first
+                process = subprocess.run(
+                    ['sudo', '/etc/init.d/anonsurf', self.command],
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+                stdout, stderr = process.stdout, process.stderr
+                
+            if process.returncode == 0:
+                self.finished.emit(True, stdout)
+            else:
+                self.finished.emit(False, stderr or stdout)
+                
+        except subprocess.TimeoutExpired:
+            self.finished.emit(False, "Command timed out")
+        except Exception as e:
+            self.finished.emit(False, str(e))
+
+class IPInfoWorker(QThread):
+    """Worker thread for getting IP information"""
+    finished = pyqtSignal(dict)
+    error = pyqtSignal(str)
+    
+    def run(self):
+        try:
+            # Get current IP
+            response = requests.get('https://icanhazip.com', timeout=10)
+            ip = response.text.strip()
+            
+            # Get IP details
+            response = requests.get(f'http://ip-api.com/xml/{ip}?fields=17960957', timeout=10)
+            root = ET.fromstring(response.text)
+            
+            ip_info = {}
+            for child in root:
+                ip_info[child.tag] = child.text
+                
+            self.finished.emit(ip_info)
+            
+        except Exception as e:
+            self.error.emit(str(e))
+
+class AnonSurfGUI(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.sudo_password = None
+        self.init_ui()
+        self.check_dependencies()
+        self.update_status()
+        
+        # Set up timer to refresh status
+        self.status_timer = QTimer()
+        self.status_timer.timeout.connect(self.update_status)
+        self.status_timer.start(5000)  # Update every 5 seconds
+        
+    def init_ui(self):
+        self.setWindowTitle("AnonSurf")
+        self.setGeometry(100, 100, 600, 500)
+        
+        # Set window icon if available
+        icon_path = "/usr/share/icons/hicolor/256x256/apps/anonsurf.png"
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+        
+        # Create central widget
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        
+        # Main layout
+        layout = QVBoxLayout(central_widget)
+        layout.setSpacing(20)
+        layout.setContentsMargins(20, 20, 20, 20)
+        
+        # Title
+        title_label = QLabel("Anonymous Browsing Service")
+        title_font = QFont()
+        title_font.setPointSize(16)
+        title_font.setBold(True)
+        title_label.setFont(title_font)
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title_label)
+        
+        # Status group
+        status_group = QGroupBox("Current Status")
+        status_layout = QVBoxLayout(status_group)
+        
+        self.tor_status_label = QLabel("Tor Status: Checking...")
+        self.ip_label = QLabel("IP Address: Checking...")
+        
+        status_layout.addWidget(self.tor_status_label)
+        status_layout.addWidget(self.ip_label)
+        layout.addWidget(status_group)
+        
+        # Actions group
+        actions_group = QGroupBox("Actions")
+        actions_layout = QVBoxLayout(actions_group)
+        
+        # Create buttons
+        self.start_btn = QPushButton("Start anonymous browsing")
+        self.stop_btn = QPushButton("Stop anonymous browsing")
+        self.change_btn = QPushButton("Change IP address")
+        self.info_btn = QPushButton("Show IP details")
+        
+        # Style buttons
+        button_style = """
+        QPushButton {
+            background-color: #2c3e50;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        QPushButton:hover {
+            background-color: #34495e;
+        }
+        QPushButton:pressed {
+            background-color: #1a252f;
+        }
+        QPushButton:disabled {
+            background-color: #7f8c8d;
+        }
+        """
+        
+        self.start_btn.setStyleSheet(button_style)
+        self.stop_btn.setStyleSheet(button_style)
+        self.change_btn.setStyleSheet(button_style)
+        self.info_btn.setStyleSheet(button_style)
+        
+        # Connect buttons
+        self.start_btn.clicked.connect(self.start_anonsurf)
+        self.stop_btn.clicked.connect(self.stop_anonsurf)
+        self.change_btn.clicked.connect(self.change_ip)
+        self.info_btn.clicked.connect(self.show_ip_info)
+        
+        actions_layout.addWidget(self.start_btn)
+        actions_layout.addWidget(self.stop_btn)
+        actions_layout.addWidget(self.change_btn)
+        actions_layout.addWidget(self.info_btn)
+        layout.addWidget(actions_group)
+        
+        # Progress bar
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setVisible(False)
+        layout.addWidget(self.progress_bar)
+        
+        # Log area
+        log_group = QGroupBox("Messages")
+        log_layout = QVBoxLayout(log_group)
+        
+        self.log_text = QTextEdit()
+        self.log_text.setMaximumHeight(150)
+        self.log_text.setReadOnly(True)
+        log_layout.addWidget(self.log_text)
+        layout.addWidget(log_group)
 
 
-exit 0;
+
+    def log_message(self, message):
+        """Add message to log area"""
+        timestamp = QDateTime.currentDateTime().toString("hh:mm:ss")
+        self.log_text.append(f"[{timestamp}] {message}")
+
+
+
+    def check_dependencies(self):
+        """Check if required dependencies are installed"""
+        dependencies = {
+            'anonsurf': '/etc/init.d/anonsurf',
+            'curl': 'curl',
+            'tor': 'tor'
+        }
+        
+        missing = []
+        for name, path in dependencies.items():
+            if name == 'anonsurf':
+                if not os.path.exists(path):
+                    missing.append(name)
+            else:
+                try:
+                    subprocess.run(['which', path], check=True, capture_output=True)
+                except subprocess.CalledProcessError:
+                    missing.append(name)
+        
+        if missing:
+            QMessageBox.critical(self, "Missing Dependencies", f"The following dependencies are missing: {', '.join(missing)}\n\nPlease install them first.")
+            sys.exit(1)
+
+
+
+    def get_sudo_password(self):
+        """Get sudo password from user"""
+        if self.sudo_password:
+            return self.sudo_password
+            
+        # Test if sudo works without password
+        try:
+            subprocess.run(['sudo', '-n', 'true'], check=True, capture_output=True)
+            return None
+        except subprocess.CalledProcessError:
+            # Need password
+            password, ok = QInputDialog.getText(self, "Sudo Password", "Enter your sudo password:", QLineEdit.EchoMode.Password)
+            if ok and password:
+                self.sudo_password = password
+                return password
+            else:
+                return None
+
+
+
+    def update_status(self):
+        """Update Tor status and IP address"""
+        # Update Tor status
+        try:
+            result = subprocess.run(['systemctl', 'is-active', 'tor'], capture_output=True, text=True)
+            tor_status = result.stdout.strip()
+            self.tor_status_label.setText(f"Tor Status: {tor_status}")
+        except:
+            self.tor_status_label.setText("Tor Status: Unknown")
+        
+        # Update IP address
+        try:
+            response = requests.get('https://icanhazip.com', timeout=5)
+            ip = response.text.strip()
+            self.ip_label.setText(f"IP Address: {ip}")
+        except:
+            self.ip_label.setText("IP Address: Unknown")
+
+
+
+    def start_anonsurf(self):
+        """Start AnonSurf service"""
+        reply = QMessageBox.question(self, "Start AnonSurf", 
+                                   "You are about to start the anonymous browsing service.\n\n"
+                                   "Any active browsers will be closed and cache files deleted.\n\n"
+                                   "Do you wish to continue?",
+                                   QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            self.log_message("Starting anonymous browsing service")
+            password = self.get_sudo_password()
+            #if password is None and self.sudo_password is None:
+            #     return
+                
+            self.progress_bar.setVisible(True)
+            self.progress_bar.setRange(0, 0)  # Indeterminate progress
+            
+            self.worker = AnonSurfWorker('start', password or self.sudo_password)
+            self.worker.finished.connect(self.on_start_finished)
+            self.worker.start()
+        else:
+            self.log_message("Aborted.")
+
+
+
+    def on_start_finished(self, success, output):
+        self.progress_bar.setVisible(False)
+        if success:
+            self.log_message("Anonymous browsing service started successfully")
+            QMessageBox.information(self, "Success", "Anonymous browsing service has been started.")
+        else:
+            self.log_message(f"Failed to start service: {output}")
+            QMessageBox.critical(self, "Error", f"Failed to start anonymous browsing service:\n{output}")
+        self.update_status()
+
+
+
+    def stop_anonsurf(self):
+        """Stop AnonSurf service"""
+        reply = QMessageBox.question(self, "Stop AnonSurf", 
+                                   "You are about to stop anonymous browsing.\n\n"
+                                   "Any active browsers will be closed and cache files deleted.\n\n"
+                                   "Do you wish to continue?",
+                                   QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            password = self.get_sudo_password()
+            #if password is None and self.sudo_password is None:
+            #    return
+                
+            self.progress_bar.setVisible(True)
+            self.progress_bar.setRange(0, 0)
+            self.log_message("Stopping anonymous browsing service")
+            
+            self.worker = AnonSurfWorker('stop', password or self.sudo_password)
+            self.worker.finished.connect(self.on_stop_finished)
+            self.worker.start()
+
+
+
+    def on_stop_finished(self, success, output):
+        self.progress_bar.setVisible(False)
+        if success:
+            self.log_message("Anonymous browsing service stopped successfully")
+            QMessageBox.information(self, "Success", "Anonymous browsing service has been stopped.")
+        else:
+            self.log_message(f"Failed to stop service: {output}")
+            QMessageBox.critical(self, "Error", f"Failed to stop anonymous browsing service:\n{output}")
+        self.update_status()
+    
+
+    """
+    change_ip()
+    """
+    def change_ip(self):
+        """Change IP address"""
+        password = self.get_sudo_password()
+        if password is None and self.sudo_password is None:
+            return
+            
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setRange(0, 0)
+        self.log_message("Changing Tor nodes")
+        
+        self.worker = AnonSurfWorker('change', password or self.sudo_password)
+        self.worker.finished.connect(self.on_change_finished)
+        self.worker.start()
+
+
+
+    def on_change_finished(self, success, output):
+        self.progress_bar.setVisible(False)
+        if success:
+            self.log_message("Tor nodes changed successfully")
+            QMessageBox.information(self, "Success", "Tor daemon reloaded and forced to change nodes")
+        else:
+            self.log_message(f"Failed to change nodes: {output}")
+            QMessageBox.critical(self, "Error", f"Failed to change Tor nodes:\n{output}")
+        self.update_status()
+
+
+
+    def show_ip_info(self):
+        """Show detailed IP information"""
+        self.log_message("Fetching IP information...")
+        self.ip_worker = IPInfoWorker()
+        self.ip_worker.finished.connect(self.on_ip_info_finished)
+        self.ip_worker.error.connect(self.on_ip_info_error)
+        self.ip_worker.start()
+
+
+
+    def on_ip_info_finished(self, ip_info):
+        info_text = "IP Address Information:\n\n"
+        for key, value in ip_info.items():
+            if value:
+                info_text += f"{key.replace('_', ' ').title()}: {value}\n"
+        
+        self.log_message("IP information retrieved successfully")
+        
+        # Show in a dialog
+        dialog = QMessageBox(self)
+        dialog.setWindowTitle("IP Address Details")
+        dialog.setText(info_text)
+        dialog.setStandardButtons(QMessageBox.StandardButton.Ok)
+        dialog.exec()
+    
+    def on_ip_info_error(self, error):
+        self.log_message(f"Failed to get IP information: {error}")
+        QMessageBox.critical(self, "Error", f"Failed to get IP information:\n{error}")
+
+def main():
+    app = QApplication(sys.argv)
+    app.setApplicationName("AnonSurf")
+    app.setApplicationVersion("2.0")
+    
+    # Set application style
+    app.setStyle('Fusion')
+    
+    window = AnonSurfGUI()
+    window.show()
+    
+    sys.exit(app.exec())
+
+if __name__ == '__main__':
+    main()
