@@ -35,7 +35,25 @@ else
 fi
 
 echo;echo -e "${GREEN}>>> Installing packages${RESETCOLOR}"
-apt install secure-delete zenity tor curl bleachbit iptables iptables-persistent -y
+apt install secure-delete tor curl bleachbit iptables iptables-persistent -y
+
+# Install Python dependencies
+apt install python3 python3-pip python3-pyqt6 python3-requests -y
+
+# Check if Python 3 is installed correctly
+if ! command -v python3 &> /dev/null; then
+    echo "Error: Python 3 is not installed. Please install Python 3 first."
+    exit 1
+fi
+
+
+#if ! command -v pip3 &> /dev/null; then
+#    echo "Error: pip3 is not installed. Please install pip3 first."
+#    exit 1
+#fi
+
+#echo;echo -e "${GREEN}>>> Installing Python dependencies${RESETCOLOR}"
+#pip3 install -r requirements.txt
 
 echo;echo "All done."
 exit 0

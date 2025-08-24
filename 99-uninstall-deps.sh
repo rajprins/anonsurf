@@ -14,7 +14,7 @@ if [ $(id -u) -ne 0 ]; then
 fi
 
 echo;echo -e "${GREEN}>>> Deleting Anonsurf dependencies${RESETCOLOR}"
-apt purge --autoremove tor secure-delete curl bleachbit iptables iptables-persistent zenity -y
+apt purge --autoremove tor python3-qt6 secure-delete curl bleachbit iptables iptables-persistent zenity -y
 
 echo;echo "All done."
 exit 0
