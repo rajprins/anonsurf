@@ -1,413 +1,568 @@
 #!/usr/bin/env python3
 
-import sys
-import os
+import gi
+gi.require_version('Gtk', '4.0')
+gi.require_version('Gdk', '4.0')
+from gi.repository import Gtk, Gdk, GLib, GObject, Gio
 import subprocess
-import json
+import os
+import sys
+import threading
+import tempfile
 import xml.etree.ElementTree as ET
-import requests
-from PyQt6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QTextEdit, QProgressBar, QMessageBox, QWidget, QFrame, QGroupBox, QInputDialog, QLineEdit)
-from PyQt6.QtCore import QThread, pyqtSignal, QTimer, Qt, QDateTime
-from PyQt6.QtGui import QFont, QIcon, QPixmap
+from typing import Optional
 
-class AnonSurfWorker(QThread):
-    """Worker thread for running AnonSurf commands"""
-    progress = pyqtSignal(str)
-    finished = pyqtSignal(bool, str)
-    
-    def __init__(self, command, sudo_password=None):
-        super().__init__()
-        self.command = command
-        self.sudo_password = sudo_password
-        
-    def run(self):
-        try:
-            if self.sudo_password:
-                # Use sudo with password
-                process = subprocess.Popen(
-                    ['sudo', '-S', '/etc/init.d/anonsurf', self.command],
-                    stdin=subprocess.PIPE,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True
-                )
-                stdout, stderr = process.communicate(input=self.sudo_password + '\n')
-            else:
-                # Try without password first
-                process = subprocess.run(
-                    ['sudo', '/etc/init.d/anonsurf', self.command],
-                    capture_output=True,
-                    text=True,
-                    timeout=30
-                )
-                stdout, stderr = process.stdout, process.stderr
-                
-            if process.returncode == 0:
-                self.finished.emit(True, stdout)
-            else:
-                self.finished.emit(False, stderr or stdout)
-                
-        except subprocess.TimeoutExpired:
-            self.finished.emit(False, "Command timed out")
-        except Exception as e:
-            self.finished.emit(False, str(e))
-
-class IPInfoWorker(QThread):
-    """Worker thread for getting IP information"""
-    finished = pyqtSignal(dict)
-    error = pyqtSignal(str)
-    
-    def run(self):
-        try:
-            # Get current IP
-            response = requests.get('https://icanhazip.com', timeout=10)
-            ip = response.text.strip()
-            
-            # Get IP details
-            response = requests.get(f'http://ip-api.com/xml/{ip}?fields=17960957', timeout=10)
-            root = ET.fromstring(response.text)
-            
-            ip_info = {}
-            for child in root:
-                ip_info[child.tag] = child.text
-                
-            self.finished.emit(ip_info)
-            
-        except Exception as e:
-            self.error.emit(str(e))
-
-class AnonSurfGUI(QMainWindow):
+class AnonSurfGUI:
     def __init__(self):
-        super().__init__()
-        self.sudo_password = None
-        self.init_ui()
-        self.check_dependencies()
-        self.update_status()
+        self.window = Gtk.ApplicationWindow()
+        self.window.set_title("AnonSurf")
+        self.window.set_default_size(600, 500)
+        self.window.connect("close-request", self.on_window_close)
         
-        # Set up timer to refresh status
-        self.status_timer = QTimer()
-        self.status_timer.timeout.connect(self.update_status)
-        self.status_timer.start(5000)  # Update every 5 seconds
+        # Store password for sudo operations
+        self.password: Optional[str] = None
+        # Track if passwordless sudo is available
+        self.can_sudo_nopass: bool = False
         
-    def init_ui(self):
-        self.setWindowTitle("AnonSurf")
-        self.setGeometry(100, 100, 600, 500)
-        
-        # Set window icon if available
-        icon_path = "/usr/share/icons/hicolor/256x256/apps/anonsurf.png"
-        if os.path.exists(icon_path):
-            self.setWindowIcon(QIcon(icon_path))
-        
-        # Create central widget
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        
-        # Main layout
-        layout = QVBoxLayout(central_widget)
-        layout.setSpacing(20)
-        layout.setContentsMargins(20, 20, 20, 20)
-        
-        # Title
-        title_label = QLabel("Anonymous Browsing Service")
-        title_font = QFont()
-        title_font.setPointSize(16)
-        title_font.setBold(True)
-        title_label.setFont(title_font)
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(title_label)
-        
-        # Status group
-        status_group = QGroupBox("Current Status")
-        status_layout = QVBoxLayout(status_group)
-        
-        self.tor_status_label = QLabel("Tor Status: Checking...")
-        self.ip_label = QLabel("IP Address: Checking...")
-        
-        status_layout.addWidget(self.tor_status_label)
-        status_layout.addWidget(self.ip_label)
-        layout.addWidget(status_group)
-        
-        # Actions group
-        actions_group = QGroupBox("Actions")
-        actions_layout = QVBoxLayout(actions_group)
-        
-        # Create buttons
-        self.start_btn = QPushButton("Start anonymous browsing")
-        self.stop_btn = QPushButton("Stop anonymous browsing")
-        self.change_btn = QPushButton("Change IP address")
-        self.info_btn = QPushButton("Show IP details")
-        
-        # Style buttons
-        button_style = """
-        QPushButton {
-            background-color: #2c3e50;
-            color: white;
-            border: none;
-            padding: 10px;
-            border-radius: 5px;
-            font-size: 14px;
-            font-weight: bold;
-        }
-        QPushButton:hover {
-            background-color: #34495e;
-        }
-        QPushButton:pressed {
-            background-color: #1a252f;
-        }
-        QPushButton:disabled {
-            background-color: #7f8c8d;
-        }
-        """
-        
-        self.start_btn.setStyleSheet(button_style)
-        self.stop_btn.setStyleSheet(button_style)
-        self.change_btn.setStyleSheet(button_style)
-        self.info_btn.setStyleSheet(button_style)
-        
-        # Connect buttons
-        self.start_btn.clicked.connect(self.start_anonsurf)
-        self.stop_btn.clicked.connect(self.stop_anonsurf)
-        self.change_btn.clicked.connect(self.change_ip)
-        self.info_btn.clicked.connect(self.show_ip_info)
-        
-        actions_layout.addWidget(self.start_btn)
-        actions_layout.addWidget(self.stop_btn)
-        actions_layout.addWidget(self.change_btn)
-        actions_layout.addWidget(self.info_btn)
-        layout.addWidget(actions_group)
-        
-        # Progress bar
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setVisible(False)
-        layout.addWidget(self.progress_bar)
-        
-        # Log area
-        log_group = QGroupBox("Messages")
-        log_layout = QVBoxLayout(log_group)
-        
-        self.log_text = QTextEdit()
-        self.log_text.setMaximumHeight(150)
-        self.log_text.setReadOnly(True)
-        log_layout.addWidget(self.log_text)
-        layout.addWidget(log_group)
-
-
-
-    def log_message(self, message):
-        """Add message to log area"""
-        timestamp = QDateTime.currentDateTime().toString("hh:mm:ss")
-        self.log_text.append(f"[{timestamp}] {message}")
-
-
-
-    def check_dependencies(self):
-        """Check if required dependencies are installed"""
-        dependencies = {
-            'anonsurf': '/etc/init.d/anonsurf',
-            'curl': 'curl',
-            'tor': 'tor'
-        }
-        
-        missing = []
-        for name, path in dependencies.items():
-            if name == 'anonsurf':
-                if not os.path.exists(path):
-                    missing.append(name)
-            else:
-                try:
-                    subprocess.run(['which', path], check=True, capture_output=True)
-                except subprocess.CalledProcessError:
-                    missing.append(name)
-        
-        if missing:
-            QMessageBox.critical(self, "Missing Dependencies", f"The following dependencies are missing: {', '.join(missing)}\n\nPlease install them first.")
+        # Check dependencies and initialize
+        if not self.check_dependencies():
             sys.exit(1)
-
-
-
-    def get_sudo_password(self):
-        """Get sudo password from user"""
-        if self.sudo_password:
-            return self.sudo_password
-            
-        # Test if sudo works without password
+        
+        if not self.init_sudo():
+            sys.exit(1)
+        
+        self.setup_ui()
+        self.update_status()
+    
+    # Handle window close request
+    def on_window_close(self, window):
+        Gtk.Application.get_default().quit()
+        return False
+    
+    # Check if required dependencies are installed
+    def check_dependencies(self) -> bool:
+        # Check if AnonSurf CLI is installed
+        if not os.path.exists('/etc/init.d/anonsurf'):
+            self.show_error("Error: AnonSurf CLI is not installed.")
+            return False
+        
+        # Check if curl is available
         try:
-            subprocess.run(['sudo', '-n', 'true'], check=True, capture_output=True)
-            return None
-        except subprocess.CalledProcessError:
-            # Need password
-            password, ok = QInputDialog.getText(self, "Sudo Password", "Enter your sudo password:", QLineEdit.EchoMode.Password)
-            if ok and password:
-                self.sudo_password = password
-                return password
-            else:
-                return None
+            subprocess.run(['curl', '--version'], capture_output=True, check=True)
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            self.show_error("Error: Curl is not installed.")
+            return False
+        
+        return True
+    
+    # Initialize sudo access
+    def init_sudo(self) -> bool:
+        if os.geteuid() != 0:
+            # Try sudo without password first
+            try:
+                subprocess.run(['sudo', '-n', 'true'], check=True)
+                self.can_sudo_nopass = True
+                return True
+            except subprocess.CalledProcessError:
+                # Need password
+                dialog = Gtk.Dialog()
+                dialog.set_title("Sudo Password")
+                dialog.set_transient_for(self.window)
+                dialog.set_modal(True)
+                dialog.set_default_size(300, 100)
+                
+                content_area = dialog.get_content_area()
+                
+                label = Gtk.Label(label="Enter sudo password:")
+                entry = Gtk.PasswordEntry()
+                entry.set_activates_default(True)
+                
+                content_area.append(label)
+                content_area.append(entry)
+                
+                dialog.add_button("Cancel", Gtk.ResponseType.CANCEL)
+                dialog.add_button("OK", Gtk.ResponseType.OK)
+                dialog.set_default_response(Gtk.ResponseType.OK)
+                
+                # Store entry reference for response handler
+                dialog.entry = entry
+                dialog.connect("response", self.on_sudo_response)
+                dialog.show()
+                
+                # Wait for response using a simple loop (not ideal but works)
+                self.sudo_response = None
+                while self.sudo_response is None:
+                    GLib.MainContext.default().iteration(True)
+                
+                password = self.sudo_response
+                dialog.destroy()
+                
+                if password:
+                    self.password = password
+                    # Test the password
+                    try:
+                        subprocess.run(['sudo', '-S', 'true'], input=password.encode(), capture_output=True, check=True)
+                        return True
+                    except subprocess.CalledProcessError:
+                        self.show_error("Error: Invalid password.")
+                        return False
+                else:
+                    self.show_error("Error: No password entered. Aborting.")
+                    return False
+        else:
+            # Running as root; no sudo needed
+            self.can_sudo_nopass = True
+        return True
+    
 
+    # Handle sudo password dialog response"
+    def on_sudo_response(self, dialog, response):
+        if response == Gtk.ResponseType.OK:
+            self.sudo_response = dialog.entry.get_text()
+        else:
+            self.sudo_response = ""
+        
+        return True
+    
 
+    # Initialize the main UI
+    def setup_ui(self):
+        # Main container
+        main_vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        main_vbox.set_margin_start(10)
+        main_vbox.set_margin_end(10)
+        main_vbox.set_margin_top(10)
+        main_vbox.set_margin_bottom(10)
+        
+        # Status frame
+        status_frame = Gtk.Frame()
+        #status_frame.set_label("Status")
+        status_vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        status_frame.set_child(status_vbox)
+        
+        self.tor_status_label = Gtk.Label(label="Tor Service: Unknown")
+        self.ip_label = Gtk.Label(label="IP Address: Unknown")
+        
+        status_vbox.append(self.tor_status_label)
+        status_vbox.append(self.ip_label)
+        
+        # Refresh button
+        refresh_button = Gtk.Button(label="Refresh Status")
+        refresh_button.connect("clicked", self.on_refresh_clicked)
+        status_vbox.append(refresh_button)
+        
+        main_vbox.append(status_frame)
+        
+        # Actions frame
+        actions_frame = Gtk.Frame()
+        #actions_frame.set_label("Actions")
+        actions_vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        actions_frame.set_child(actions_vbox)
+        
+        # Action buttons (icon + label)
+        start_button = Gtk.Button()
+        start_button.set_size_request(120, 120)  # minimum size
+        start_button.set_hexpand(True)
+        start_button.set_vexpand(True)
+        start_img = Gtk.Image.new_from_icon_name("media-playback-start-symbolic")
+        start_img.set_pixel_size(48)
+        start_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        start_box.set_halign(Gtk.Align.CENTER)
+        start_box.set_valign(Gtk.Align.CENTER)
+        start_label = Gtk.Label(label="Start")
+        start_box.append(start_img)
+        start_box.append(start_label)
+        start_button.set_child(start_box)
+        start_button.connect("clicked", self.on_start_clicked)
+        
+        stop_button = Gtk.Button()
+        stop_button.set_size_request(120, 120)  # minimum size
+        stop_button.set_hexpand(True)
+        stop_button.set_vexpand(True)
+        stop_img = Gtk.Image.new_from_icon_name("media-playback-stop-symbolic")
+        stop_img.set_pixel_size(48)
+        stop_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        stop_box.set_halign(Gtk.Align.CENTER)
+        stop_box.set_valign(Gtk.Align.CENTER)
+        stop_label = Gtk.Label(label="Stop")
+        stop_box.append(stop_img)
+        stop_box.append(stop_label)
+        stop_button.set_child(stop_box)
+        stop_button.connect("clicked", self.on_stop_clicked)
+        
+        # Place Start and Stop side-by-side and let them grow evenly
+        start_stop_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        start_stop_box.set_homogeneous(True)
+        start_stop_box.set_vexpand(True)
+        start_stop_box.append(start_button)
+        start_stop_box.append(stop_button)
+        actions_vbox.append(start_stop_box)
+        
+        change_button = Gtk.Button(label="Change IP Address")
+        change_button.connect("clicked", self.on_change_clicked)
+        actions_vbox.append(change_button)
+        
+        info_button = Gtk.Button(label="Show IP Information")
+        info_button.connect("clicked", self.on_info_clicked)
+        actions_vbox.append(info_button)
+        
+        main_vbox.append(actions_frame)
+        
+        self.window.set_child(main_vbox)
+        
+        # Keep references for dynamic sizing
+        self.start_button_ref = start_button
+        self.stop_button_ref = stop_button
+        self.start_stop_box_ref = start_stop_box
+        self.vbox_margin_total_h = main_vbox.get_margin_start() + main_vbox.get_margin_end()
+        self.vbox_margin_total_v = main_vbox.get_margin_top() + main_vbox.get_margin_bottom()
+        self.start_stop_spacing = start_stop_box.get_spacing()
+        
+        # Initial default size (will be adjusted after realize)
+        self.window.set_default_size(256, 160)
+        
+        self.window.show()
+        
+        # Adjust window size to combined Start/Stop button sizes after layout
+        self.schedule_window_size_adjust()
+    
 
+    # Update the status display
     def update_status(self):
-        """Update Tor status and IP address"""
-        # Update Tor status
-        try:
-            result = subprocess.run(['systemctl', 'is-active', 'tor'], capture_output=True, text=True)
-            tor_status = result.stdout.strip()
-            self.tor_status_label.setText(f"Tor Status: {tor_status}")
-        except:
-            self.tor_status_label.setText("Tor Status: Unknown")
-        
-        # Update IP address
-        try:
-            response = requests.get('https://icanhazip.com', timeout=5)
-            ip = response.text.strip()
-            self.ip_label.setText(f"IP Address: {ip}")
-        except:
-            self.ip_label.setText("IP Address: Unknown")
-
-
-
-    def start_anonsurf(self):
-        """Start AnonSurf service"""
-        reply = QMessageBox.question(self, "Start AnonSurf", 
-                                   "You are about to start the anonymous browsing service.\n\n"
-                                   "Any active browsers will be closed and cache files deleted.\n\n"
-                                   "Do you wish to continue?",
-                                   QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        
-        if reply == QMessageBox.StandardButton.Yes:
-            self.log_message("Starting anonymous browsing service")
-            password = self.get_sudo_password()
-            #if password is None and self.sudo_password is None:
-            #     return
-                
-            self.progress_bar.setVisible(True)
-            self.progress_bar.setRange(0, 0)  # Indeterminate progress
+        def update():
+            # Get Tor status
+            try:
+                result = subprocess.run(['systemctl', 'is-active', 'tor'], capture_output=True, text=True, check=True)
+                tor_status = result.stdout.strip()
+            except subprocess.CalledProcessError:
+                tor_status = "inactive"
             
-            self.worker = AnonSurfWorker('start', password or self.sudo_password)
-            self.worker.finished.connect(self.on_start_finished)
-            self.worker.start()
-        else:
-            self.log_message("Aborted.")
-
-
-
-    def on_start_finished(self, success, output):
-        self.progress_bar.setVisible(False)
-        if success:
-            self.log_message("Anonymous browsing service started successfully")
-            QMessageBox.information(self, "Success", "Anonymous browsing service has been started.")
-        else:
-            self.log_message(f"Failed to start service: {output}")
-            QMessageBox.critical(self, "Error", f"Failed to start anonymous browsing service:\n{output}")
-        self.update_status()
-
-
-
-    def stop_anonsurf(self):
-        """Stop AnonSurf service"""
-        reply = QMessageBox.question(self, "Stop AnonSurf", 
-                                   "You are about to stop anonymous browsing.\n\n"
-                                   "Any active browsers will be closed and cache files deleted.\n\n"
-                                   "Do you wish to continue?",
-                                   QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        
-        if reply == QMessageBox.StandardButton.Yes:
-            password = self.get_sudo_password()
-            #if password is None and self.sudo_password is None:
-            #    return
-                
-            self.progress_bar.setVisible(True)
-            self.progress_bar.setRange(0, 0)
-            self.log_message("Stopping anonymous browsing service")
+            # Get IP address
+            try:
+                result = subprocess.run(['curl', '-s', 'icanhazip.com'], capture_output=True, text=True, check=True)
+                ip_address = result.stdout.strip()
+            except subprocess.CalledProcessError:
+                ip_address = "Unknown"
             
-            self.worker = AnonSurfWorker('stop', password or self.sudo_password)
-            self.worker.finished.connect(self.on_stop_finished)
-            self.worker.start()
+            # Update UI in main thread
+            GLib.idle_add(self.update_status_labels, tor_status, ip_address)
+        
+        # Run in background thread
+        thread = threading.Thread(target=update)
+        thread.daemon = True
+        thread.start()
+    
 
+    # Update status labels (called from main thread)
+    def update_status_labels(self, tor_status: str, ip_address: str):
+        self.tor_status_label.set_text(f"Tor Service: {tor_status}")
+        self.ip_label.set_text(f"IP Address: {ip_address}")
+    
 
-
-    def on_stop_finished(self, success, output):
-        self.progress_bar.setVisible(False)
-        if success:
-            self.log_message("Anonymous browsing service stopped successfully")
-            QMessageBox.information(self, "Success", "Anonymous browsing service has been stopped.")
-        else:
-            self.log_message(f"Failed to stop service: {output}")
-            QMessageBox.critical(self, "Error", f"Failed to stop anonymous browsing service:\n{output}")
+    # Handle refresh button click
+    def on_refresh_clicked(self, button):
         self.update_status()
     
 
-    """
-    change_ip()
-    """
-    def change_ip(self):
-        """Change IP address"""
-        password = self.get_sudo_password()
-        if password is None and self.sudo_password is None:
-            return
-            
-        self.progress_bar.setVisible(True)
-        self.progress_bar.setRange(0, 0)
-        self.log_message("Changing Tor nodes")
+    # Handle start button click
+    def on_start_clicked(self, button):
+        dialog = Gtk.MessageDialog(
+            transient_for=self.window,
+            message_type=Gtk.MessageType.QUESTION,
+            buttons=Gtk.ButtonsType.YES_NO,
+            text="Start Anonymous Browsing",
+            secondary_text="You are about to start the anonymous browsing service.\n\nAny active browsers will be closed and cache files deleted.\n\nDo you wish to continue?"
+        )
         
-        self.worker = AnonSurfWorker('change', password or self.sudo_password)
-        self.worker.finished.connect(self.on_change_finished)
-        self.worker.start()
-
-
-
-    def on_change_finished(self, success, output):
-        self.progress_bar.setVisible(False)
-        if success:
-            self.log_message("Tor nodes changed successfully")
-            QMessageBox.information(self, "Success", "Tor daemon reloaded and forced to change nodes")
-        else:
-            self.log_message(f"Failed to change nodes: {output}")
-            QMessageBox.critical(self, "Error", f"Failed to change Tor nodes:\n{output}")
-        self.update_status()
-
-
-
-    def show_ip_info(self):
-        """Show detailed IP information"""
-        self.log_message("Fetching IP information...")
-        self.ip_worker = IPInfoWorker()
-        self.ip_worker.finished.connect(self.on_ip_info_finished)
-        self.ip_worker.error.connect(self.on_ip_info_error)
-        self.ip_worker.start()
-
-
-
-    def on_ip_info_finished(self, ip_info):
-        info_text = "IP Address Information:\n\n"
-        for key, value in ip_info.items():
-            if value:
-                info_text += f"{key.replace('_', ' ').title()}: {value}\n"
-        
-        self.log_message("IP information retrieved successfully")
-        
-        # Show in a dialog
-        dialog = QMessageBox(self)
-        dialog.setWindowTitle("IP Address Details")
-        dialog.setText(info_text)
-        dialog.setStandardButtons(QMessageBox.StandardButton.Ok)
-        dialog.exec()
+        dialog.connect("response", self.on_start_response)
+        dialog.show()
     
-    def on_ip_info_error(self, error):
-        self.log_message(f"Failed to get IP information: {error}")
-        QMessageBox.critical(self, "Error", f"Failed to get IP information:\n{error}")
+
+    # Handle start dialog response
+    def on_start_response(self, dialog, response):
+        dialog.destroy()
+        if response == Gtk.ResponseType.YES:
+            self.run_anonsurf_command("start", "Starting anonymous browsing mode...")
+    
+
+    # Handle stop button click
+    def on_stop_clicked(self, button):
+        dialog = Gtk.MessageDialog(
+            transient_for=self.window,
+            message_type=Gtk.MessageType.QUESTION,
+            buttons=Gtk.ButtonsType.YES_NO,
+            text="Stop Anonymous Browsing",
+            secondary_text="You are about to stop anonymous browsing.\n\nAny active browsers will be closed and cache files deleted.\n\nDo you wish to continue?"
+        )
+        
+        dialog.connect("response", self.on_stop_response)
+        dialog.show()
+    
+
+    # Handle stop dialog response
+    def on_stop_response(self, dialog, response):
+        dialog.destroy()
+        if response == Gtk.ResponseType.YES:
+            self.run_anonsurf_command("stop", "Stopping anonymous browsing mode...")
+    
+
+    # Handle change IP button click
+    def on_change_clicked(self, button):
+        self.run_anonsurf_command("change", "Changing Tor nodes...")
+    
+
+    # Handle info button click"
+    def on_info_clicked(self, button):
+        def get_ip_info():
+            try:
+                # Build command with sudo as needed
+                if self.password:
+                    cmd = ['sudo', '-S', '/etc/init.d/anonsurf', 'ipinfo']
+                    result = subprocess.run(
+                        cmd,
+                        input=self.password.encode(),
+                        capture_output=True,
+                        text=True,
+                        check=True
+                    )
+                elif self.can_sudo_nopass:
+                    cmd = ['sudo', '-n', '/etc/init.d/anonsurf', 'ipinfo']
+                    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+                else:
+                    # As a last resort try without sudo (may fail)
+                    cmd = ['/etc/init.d/anonsurf', 'ipinfo']
+                    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+                
+                # Parse XML output
+                output_lines = result.stdout.split('\n')[2:-2]  # Skip first 2 and last 2 lines
+                parsed_info = []
+                
+                for line in output_lines:
+                    if line.strip():
+                        try:
+                            # Simple XML parsing
+                            if '>' in line and '<' in line:
+                                parts = line.split('>')
+                                if len(parts) >= 2:
+                                    entity = parts[0].split('<')[-1]
+                                    content = parts[1].split('<')[0]
+                                    if content.strip():
+                                        parsed_info.append(f"{entity}: {content}")
+                        except Exception:
+                            # If parsing fails, just add the line as is
+                            parsed_info.append(line.strip())
+                
+                info_text = '\n'.join(parsed_info) if parsed_info else "No IP information available"
+                GLib.idle_add(self.show_info_dialog, info_text)
+                
+            except subprocess.CalledProcessError as e:
+                error_msg = f"Error getting IP info: {e}"
+                GLib.idle_add(self.show_error, error_msg)
+        
+        thread = threading.Thread(target=get_ip_info)
+        thread.daemon = True
+        thread.start()
+    
+
+    # Show IP information dialog
+    def show_info_dialog(self, info_text: str):
+        dialog = Gtk.Dialog()
+        dialog.set_title("IP Address Details")
+        dialog.set_transient_for(self.window)
+        dialog.set_modal(True)
+        dialog.set_default_size(350, 400)
+        
+        content_area = dialog.get_content_area()
+        content_area.set_hexpand(True)
+        content_area.set_vexpand(True)
+        # Add padding of 5 around content area
+        content_area.set_margin_start(5)
+        content_area.set_margin_end(5)
+        content_area.set_margin_top(5)
+        content_area.set_margin_bottom(5)
+        
+        scrolled_window = Gtk.ScrolledWindow()
+        scrolled_window.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        scrolled_window.set_hexpand(True)
+        scrolled_window.set_vexpand(True)
+        #scrolled_window.set_min_content_width(350)
+        #scrolled_window.set_min_content_height(350)
+        
+        text_view = Gtk.TextView()
+        text_view.set_editable(False)
+        text_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
+        text_view.set_hexpand(True)
+        text_view.set_vexpand(True)
+        
+        buffer = text_view.get_buffer()
+        buffer.set_text(info_text)
+        
+        scrolled_window.set_child(text_view)
+        content_area.append(scrolled_window)
+        
+        dialog.add_button("Copy to clipboard", Gtk.ResponseType.APPLY)
+        dialog.add_button("Save to file…", Gtk.ResponseType.ACCEPT)
+        dialog.add_button("Close", Gtk.ResponseType.CLOSE)
+        dialog.set_default_response(Gtk.ResponseType.CLOSE)
+        
+        def on_info_response(dlg, response):
+            if response == Gtk.ResponseType.APPLY:
+                # Copy text to clipboard using GTK4/GDK clipboard APIs
+                display = self.window.get_display()
+                clipboard = display.get_clipboard()
+                data = info_text.encode('utf-8')
+                bytes_obj = GLib.Bytes.new(data)
+                provider = Gdk.ContentProvider.new_for_bytes('text/plain;charset=utf-8', bytes_obj)
+                clipboard.set(provider)
+                dlg.destroy()
+            elif response == Gtk.ResponseType.ACCEPT:
+                # Save to file via GTK4 FileDialog
+                file_dialog = Gtk.FileDialog()
+                file_dialog.set_initial_name("ip-info.txt")
+                
+                def on_save_complete(fdlg, res):
+                    try:
+                        gfile = fdlg.save_finish(res)
+                        if gfile is not None:
+                            path = gfile.get_path() if hasattr(gfile, 'get_path') else None
+                            if path:
+                                try:
+                                    with open(path, 'w', encoding='utf-8') as f:
+                                        f.write(info_text)
+                                    GLib.idle_add(self.show_notification, f"Saved to {path}")
+                                except Exception as e:
+                                    GLib.idle_add(self.show_error, f"Failed to write file: {e}")
+                    except Exception as e:
+                        GLib.idle_add(self.show_error, f"Save cancelled or failed: {e}")
+                    finally:
+                        # Close the info dialog after save completes
+                        dlg.destroy()
+                
+                # Trigger async save; keep the dialog open until callback finishes
+                file_dialog.save(self.window, None, on_save_complete)
+            else:
+                dlg.destroy()
+        
+        dialog.connect("response", on_info_response)
+        dialog.show()
+    
+
+    # Run AnonSurf command with progress dialog
+    def run_anonsurf_command(self, action: str, progress_text: str):
+        def run_command():
+            try:
+                # Build command with sudo as needed
+                if self.password:
+                    cmd = ['sudo', '-S', '/etc/init.d/anonsurf', action]
+                    subprocess.run(cmd, input=self.password.encode(), capture_output=True, text=True, check=True)
+                elif self.can_sudo_nopass:
+                    cmd = ['sudo', '-n', '/etc/init.d/anonsurf', action]
+                    subprocess.run(cmd, capture_output=True, text=True, check=True)
+                else:
+                    cmd = ['/etc/init.d/anonsurf', action]
+                    subprocess.run(cmd, capture_output=True, text=True, check=True)
+                
+                # Update status after command completes
+                GLib.idle_add(self.update_status)
+                GLib.idle_add(self.show_notification, f"AnonSurf {action} completed successfully")
+                
+            except subprocess.CalledProcessError as e:
+                error_msg = f"Error running AnonSurf {action}: {e}"
+                GLib.idle_add(self.show_error, error_msg)
+        
+        # Show progress dialog
+        progress_dialog = Gtk.Dialog()
+        progress_dialog.set_title("AnonSurf")
+        progress_dialog.set_transient_for(self.window)
+        progress_dialog.set_modal(True)
+        progress_dialog.set_default_size(300, 100)
+        
+        content_area = progress_dialog.get_content_area()
+        
+        label = Gtk.Label(label=progress_text)
+        progress_bar = Gtk.ProgressBar()
+        progress_bar.set_fraction(0.0)
+        
+        content_area.append(label)
+        content_area.append(progress_bar)
+        
+        progress_dialog.show()
+        
+        # Animate progress bar
+        def animate_progress():
+            current = progress_bar.get_fraction()
+            if current < 0.9:
+                progress_bar.set_fraction(current + 0.1)
+                return True
+            return False
+        
+        GLib.timeout_add(100, animate_progress)
+        
+        # Run command in background
+        thread = threading.Thread(target=run_command)
+        thread.daemon = True
+        thread.start()
+        
+        # Close progress dialog after a delay
+        GLib.timeout_add(2000, progress_dialog.destroy)
+    
+
+    # Show error dialog
+    def show_error(self, message: str):
+        dialog = Gtk.MessageDialog(
+            transient_for=self.window,
+            message_type=Gtk.MessageType.ERROR,
+            buttons=Gtk.ButtonsType.OK,
+            text="Error",
+            secondary_text=message
+        )
+        dialog.connect("response", lambda d, r: d.destroy())
+        dialog.show()
+    
+
+
+    # Show notification (simplified version)
+    def show_notification(self, message: str):
+        dialog = Gtk.MessageDialog(
+            transient_for=self.window,
+            message_type=Gtk.MessageType.INFO,
+            buttons=Gtk.ButtonsType.OK,
+            text="AnonSurf",
+            secondary_text=message
+        )
+        dialog.connect("response", lambda d, r: d.destroy())
+        dialog.show()
+
+    def schedule_window_size_adjust(self):
+        def try_adjust():
+            w1 = self.start_button_ref.get_allocated_width()
+            h1 = self.start_button_ref.get_allocated_height()
+            w2 = self.stop_button_ref.get_allocated_width()
+            h2 = self.stop_button_ref.get_allocated_height()
+            # Wait until allocation happens
+            if w1 == 0 or w2 == 0 or h1 == 0 or h2 == 0:
+                return True  # keep trying
+            width = w1 + w2 + self.start_stop_spacing + self.vbox_margin_total_h
+            height = max(h1, h2) + self.vbox_margin_total_v
+            self.window.set_default_size(width, height)
+            return False
+        GLib.timeout_add(50, try_adjust)
+
+
 
 def main():
-    app = QApplication(sys.argv)
-    app.setApplicationName("AnonSurf")
-    app.setApplicationVersion("2.0")
+    # Create GTK application
+    app = Gtk.Application(application_id="org.anonsurf.gui")
     
-    # Set application style
-    app.setStyle('Fusion')
+    def on_activate(application):
+        window = AnonSurfGUI()
+        window.window.set_application(application)
+        window.window.present()
     
-    window = AnonSurfGUI()
-    window.show()
-    
-    sys.exit(app.exec())
+    app.connect("activate", on_activate)
+    app.run(None)
 
-if __name__ == '__main__':
+
+
+if __name__ == "__main__":
     main()

@@ -2,9 +2,9 @@ Package: anonsurf
 Version: 1.1.0
 Architecture: all
 Maintainer: rajprins
-Depends: tor, curl, bleachbit, python3, python3-pyqt6, iptables, iptables-persistent, secure-delete
+Depends: tor, curl, bleachbit, python3, gir1.2-gtk-4.0, iptables, iptables-persistent, secure-delete
 Recommends:
 Suggests:
 Section: net
 Priority: optional
-Description: Simple GUI wrapper for anonymous surfing using Tor and I2P, for Debian/Ubuntu systems
+Description: Basic GTK UI for anonymous surfing using Tor and I2P, for Debian/Ubuntu systems
