@@ -2,11 +2,13 @@
 
 ![Screenshot](https://github.com/rajprins/anonsurf/raw/master/images/anonsurf.png)
 
-ParrotSec's anonsurf and stealth, ported to work with Debian/Ubuntu systems. Now with a simple GUI wrapper for your convenience. 
+
+Anonymous browsing service using Tor. Loosely based on ParrotSec's anonsurf and stealth, ported to work with Debian/Ubuntu systems. 
+Now with a simple GTK UI for your convenience. 
 
 Modifications have been made to use the DNS servers of Private Internet Access (instead of FrozenDNS), and fixes for users who don't use the resolvconf application. 
 
-NOTE: This will work on most Debian/Ubuntu systems, but this has only been tested on Kali Linux.
+NOTE: This should work on most Debian/Ubuntu systems, including Kali Linux. It will not work on non-Debian systems.
 
 ## How to use this repo
 
@@ -89,16 +91,16 @@ Once the installer is complete, you will be able to use Anonsurf on both command
 
 ## Using Anonsurf (GUI)
 The easiest way to use Anonsurf is launching the GUI version and selecting an option from the main window.
-![Action](https://github.com/rajprins/anonsurf/raw/master/images/Main.png)  
+![Action](https://github.com/rajprins/anonsurf/raw/master/images/001.png)  
 
 To start anonymous browsing, select action "start" and click the OK button.
-![start](https://github.com/rajprins/anonsurf/raw/master/images/Actions.png)
+![start](https://github.com/rajprins/anonsurf/raw/master/images/002.png)
 
 When starting an action like starting or stopping the anonymous service, a progress bar will be displayed. Click the OK button after completion to close the dialog.  
-![progress](https://github.com/rajprins/anonsurf/raw/master/images/Stopping.png)
+![progress](https://github.com/rajprins/anonsurf/raw/master/images/003.png)
 
 At any time, you can verify your IP address (and geo location details for that IP address) using the "status" option.
-![status](https://github.com/rajprins/anonsurf/raw/master/images/Status.png)
+![status](https://github.com/rajprins/anonsurf/raw/master/images/004.png)
 
 ## Using Anonsurf (command line)
 Anonsurf comes with a terminal version and a GUI version.  

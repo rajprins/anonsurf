@@ -136,12 +136,15 @@ class AnonSurfGUI:
         
         # Status frame
         status_frame = Gtk.Frame()
-        #status_frame.set_label("Status")
         status_vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
         status_frame.set_child(status_vbox)
         
-        self.tor_status_label = Gtk.Label(label="Tor Service: Unknown")
-        self.ip_label = Gtk.Label(label="IP Address: Unknown")
+        self.tor_status_label = Gtk.Label(label=" Tor Service: Unknown")
+        self.tor_status_label.set_halign(Gtk.Align.START)
+        self.tor_status_label.set_xalign(0.0)
+        self.ip_label = Gtk.Label(label=" IP Address: Unknown")
+        self.ip_label.set_halign(Gtk.Align.START)
+        self.ip_label.set_xalign(0.0)
         
         status_vbox.append(self.tor_status_label)
         status_vbox.append(self.ip_label)
@@ -155,7 +158,6 @@ class AnonSurfGUI:
         
         # Actions frame
         actions_frame = Gtk.Frame()
-        #actions_frame.set_label("Actions")
         actions_vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
         actions_frame.set_child(actions_vbox)
         
@@ -255,8 +257,8 @@ class AnonSurfGUI:
 
     # Update status labels (called from main thread)
     def update_status_labels(self, tor_status: str, ip_address: str):
-        self.tor_status_label.set_text(f"Tor Service: {tor_status}")
-        self.ip_label.set_text(f"IP Address: {ip_address}")
+        self.tor_status_label.set_text(f" Tor Status: {tor_status}")
+        self.ip_label.set_text(f" IP Address: {ip_address}")
     
 
     # Handle refresh button click
