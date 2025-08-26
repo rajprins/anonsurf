@@ -3,7 +3,8 @@
 import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Gdk', '4.0')
-from gi.repository import Gtk, Gdk, GLib, GObject, Gio
+gi.require_version('Adw', '1')
+from gi.repository import Gtk, Gdk, GLib, GObject, Adw
 import subprocess
 import os
 import sys
@@ -12,12 +13,27 @@ import tempfile
 import xml.etree.ElementTree as ET
 from typing import Optional
 
+# Try to set process name for better identification
+try:
+    import setproctitle
+    setproctitle.setproctitle("anonsurf")
+except ImportError:
+    # Fallback: try to set argv[0]
+    if len(sys.argv) > 0:
+        sys.argv[0] = "anonsurf"
+
 class AnonSurfGUI:
     def __init__(self):
+        # Use Gtk.ApplicationWindow to allow setting a custom titlebar
         self.window = Gtk.ApplicationWindow()
         self.window.set_title("AnonSurf")
-        self.window.set_default_size(600, 500)
+        self.window.set_name("anonsurf")  # Set internal name
         self.window.connect("close-request", self.on_window_close)
+        
+        # Add a Gtk.HeaderBar with default window controls
+        headerbar = Gtk.HeaderBar()
+        headerbar.set_title_widget(Gtk.Label(label="AnonSurf"))
+        self.window.set_titlebar(headerbar)
         
         # Store password for sudo operations
         self.password: Optional[str] = None
@@ -127,106 +143,133 @@ class AnonSurfGUI:
 
     # Initialize the main UI
     def setup_ui(self):
-        # Main container
-        main_vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        main_vbox.set_margin_start(10)
-        main_vbox.set_margin_end(10)
-        main_vbox.set_margin_top(10)
-        main_vbox.set_margin_bottom(10)
         
-        # Status frame
-        status_frame = Gtk.Frame()
-        status_vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        status_frame.set_child(status_vbox)
+        # Main container wrapped in Adw.Clamp for responsive margins
+        clamp = Adw.Clamp()
         
-        self.tor_status_label = Gtk.Label(label=" Tor Service: Unknown")
-        self.tor_status_label.set_halign(Gtk.Align.START)
-        self.tor_status_label.set_xalign(0.0)
-        self.ip_label = Gtk.Label(label=" IP Address: Unknown")
-        self.ip_label.set_halign(Gtk.Align.START)
-        self.ip_label.set_xalign(0.0)
+        #main_vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        main_vbox = Gtk.Box()
+        clamp.set_child(main_vbox)
         
-        status_vbox.append(self.tor_status_label)
-        status_vbox.append(self.ip_label)
+        # (Reverted) Remove large Quick Actions buttons; use Adwaita action rows below
         
-        # Refresh button
-        refresh_button = Gtk.Button(label="Refresh Status")
+        # Status section (Adwaita native)
+        prefs_page = Adw.PreferencesPage()
+        prefs_page.set_title("AnonSurf") # Set a title for the preferences page
+        
+        # Status group
+        #status_group = Adw.PreferencesGroup(title="Status")
+        status_group = Adw.PreferencesGroup()
+        status_group.set_margin_start(10)
+        status_group.set_margin_end(10)
+        
+        # Tor status row
+        self.tor_row = Adw.ActionRow(title="Tor Service", subtitle="Unknown")
+        status_group.add(self.tor_row)
+        
+        # IP address row with refresh suffix button
+        self.ip_row = Adw.ActionRow(title="IP Address", subtitle="Unknown")
+        refresh_button = Gtk.Button.new_from_icon_name("view-refresh-symbolic")
+        refresh_button.set_tooltip_text("Refresh status")
         refresh_button.connect("clicked", self.on_refresh_clicked)
-        status_vbox.append(refresh_button)
+        self.ip_row.add_suffix(refresh_button)
+        self.ip_row.set_activatable_widget(refresh_button)
+        status_group.add(self.ip_row)
         
-        main_vbox.append(status_frame)
+        prefs_page.add(status_group)
         
-        # Actions frame
-        actions_frame = Gtk.Frame()
-        actions_vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
-        actions_frame.set_child(actions_vbox)
+        # Toggle button section (separate from other actions)
+        #toggle_group = Adw.PreferencesGroup(title="Service Control")
+        toggle_group = Adw.PreferencesGroup()
         
-        # Action buttons (icon + label)
-        start_button = Gtk.Button()
-        start_button.set_size_request(120, 120)  # minimum size
-        start_button.set_hexpand(True)
-        start_button.set_vexpand(True)
-        start_img = Gtk.Image.new_from_icon_name("media-playback-start-symbolic")
-        start_img.set_pixel_size(48)
-        start_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-        start_box.set_halign(Gtk.Align.CENTER)
-        start_box.set_valign(Gtk.Align.CENTER)
-        start_label = Gtk.Label(label="Start")
-        start_box.append(start_img)
-        start_box.append(start_label)
-        start_button.set_child(start_box)
-        start_button.connect("clicked", self.on_start_clicked)
-        
-        stop_button = Gtk.Button()
-        stop_button.set_size_request(120, 120)  # minimum size
-        stop_button.set_hexpand(True)
-        stop_button.set_vexpand(True)
-        stop_img = Gtk.Image.new_from_icon_name("media-playback-stop-symbolic")
-        stop_img.set_pixel_size(48)
-        stop_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-        stop_box.set_halign(Gtk.Align.CENTER)
-        stop_box.set_valign(Gtk.Align.CENTER)
-        stop_label = Gtk.Label(label="Stop")
-        stop_box.append(stop_img)
-        stop_box.append(stop_label)
-        stop_button.set_child(stop_box)
-        stop_button.connect("clicked", self.on_stop_clicked)
-        
-        # Place Start and Stop side-by-side and let them grow evenly
+        # Button container for start/stop
         start_stop_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        start_stop_box.set_homogeneous(True)
-        start_stop_box.set_vexpand(True)
-        start_stop_box.append(start_button)
-        start_stop_box.append(stop_button)
-        actions_vbox.append(start_stop_box)
+        start_stop_box.set_margin_start(10)
+        start_stop_box.set_margin_end(10)
+        start_stop_box.set_margin_top(10)
+        start_stop_box.set_margin_bottom(10)
         
-        change_button = Gtk.Button(label="Change IP Address")
-        change_button.connect("clicked", self.on_change_clicked)
-        actions_vbox.append(change_button)
+        # Start button
+        self.start_button = Gtk.Button()
+        self.start_button.set_tooltip_text("Start Tor service")
+        self.start_button.connect("clicked", self.on_start_clicked)
+        self.start_button.set_hexpand(True)
+        self.start_button.set_size_request(-1, 120)  # Fixed height of 120px
         
-        info_button = Gtk.Button(label="Show IP Information")
-        info_button.connect("clicked", self.on_info_clicked)
-        actions_vbox.append(info_button)
+        # Start button icon and label
+        start_vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        start_vbox.set_halign(Gtk.Align.CENTER)
+        start_vbox.set_valign(Gtk.Align.CENTER)
+        start_icon = Gtk.Image.new_from_icon_name("media-playback-start-symbolic")
+        start_icon.set_pixel_size(32)
+        start_label = Gtk.Label(label="Start")
+        start_vbox.append(start_icon)
+        start_vbox.append(start_label)
+        self.start_button.set_child(start_vbox)
+        start_stop_box.append(self.start_button)
         
-        main_vbox.append(actions_frame)
+        # Stop button
+        self.stop_button = Gtk.Button()
+        self.stop_button.set_tooltip_text("Stop Tor service")
+        self.stop_button.connect("clicked", self.on_stop_clicked)
+        self.stop_button.set_hexpand(True)
+        self.stop_button.set_size_request(-1, 120)  # Fixed height of 120px
         
-        self.window.set_child(main_vbox)
+        # Stop button icon and label
+        stop_vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        stop_vbox.set_halign(Gtk.Align.CENTER)
+        stop_vbox.set_valign(Gtk.Align.CENTER)
+        stop_icon = Gtk.Image.new_from_icon_name("media-playback-stop-symbolic")
+        stop_icon.set_pixel_size(32)
+        stop_label = Gtk.Label(label="Stop")
+        stop_vbox.append(stop_icon)
+        stop_vbox.append(stop_label)
+        self.stop_button.set_child(stop_vbox)
+        start_stop_box.append(self.stop_button)
         
-        # Keep references for dynamic sizing
-        self.start_button_ref = start_button
-        self.stop_button_ref = stop_button
-        self.start_stop_box_ref = start_stop_box
-        self.vbox_margin_total_h = main_vbox.get_margin_start() + main_vbox.get_margin_end()
-        self.vbox_margin_total_v = main_vbox.get_margin_top() + main_vbox.get_margin_bottom()
-        self.start_stop_spacing = start_stop_box.get_spacing()
+        toggle_group.add(start_stop_box)
+        prefs_page.add(toggle_group)
         
-        # Initial default size (will be adjusted after realize)
-        self.window.set_default_size(256, 160)
+        # Actions section with traditional buttons
+        #actions_group = Adw.PreferencesGroup(title="Actions")
+        actions_group = Adw.PreferencesGroup()
         
+        # Button container for other actions
+        button_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        button_box.set_margin_start(10)
+        button_box.set_margin_end(10)
+        button_box.set_margin_top(0)
+        button_box.set_margin_bottom(0)
+        
+        # Change IP button
+        self.change_btn = Gtk.Button(label="Change IP Address")
+        self.change_btn.set_tooltip_text("Reload Tor circuits to obtain a new exit node")
+        self.change_btn.connect("clicked", self.on_change_clicked)
+        button_box.append(self.change_btn)
+        
+        # Show IP details button
+        info_btn = Gtk.Button(label="IP Address Details")
+        info_btn.set_tooltip_text("Show geolocation and ISP details")
+        info_btn.connect("clicked", self.on_info_clicked)
+        button_box.append(info_btn)
+        
+        actions_group.add(button_box)
+        prefs_page.add(actions_group)
+        
+        main_vbox.append(prefs_page)
+        
+        # Install into window
+        self.window.set_child(clamp)
+        
+        # Set application icon
+        try:
+            self.window.set_icon_name("anonsurf")
+        except Exception as e:
+            print(f"Warning: Could not set application icon: {e}")
+        
+        self.window.set_default_size(400, 470)
+        self.window.set_resizable(False)
         self.window.show()
-        
-        # Adjust window size to combined Start/Stop button sizes after layout
-        self.schedule_window_size_adjust()
     
 
     # Update the status display
@@ -234,21 +277,31 @@ class AnonSurfGUI:
         def update():
             # Get Tor status
             try:
-                result = subprocess.run(['systemctl', 'is-active', 'tor'], capture_output=True, text=True, check=True)
+                result = subprocess.run(
+                    ['systemctl', 'is-active', 'tor'],
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
                 tor_status = result.stdout.strip()
             except subprocess.CalledProcessError:
                 tor_status = "inactive"
-            
+
             # Get IP address
             try:
-                result = subprocess.run(['curl', '-s', 'icanhazip.com'], capture_output=True, text=True, check=True)
+                result = subprocess.run(
+                    ['curl', '-s', 'icanhazip.com'],
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
                 ip_address = result.stdout.strip()
             except subprocess.CalledProcessError:
                 ip_address = "Unknown"
-            
+
             # Update UI in main thread
             GLib.idle_add(self.update_status_labels, tor_status, ip_address)
-        
+
         # Run in background thread
         thread = threading.Thread(target=update)
         thread.daemon = True
@@ -257,56 +310,67 @@ class AnonSurfGUI:
 
     # Update status labels (called from main thread)
     def update_status_labels(self, tor_status: str, ip_address: str):
-        self.tor_status_label.set_text(f" Tor Status: {tor_status}")
-        self.ip_label.set_text(f" IP Address: {ip_address}")
-    
-
-    # Handle refresh button click
-    def on_refresh_clicked(self, button):
-        self.update_status()
-    
+        self.tor_row.set_subtitle(tor_status)
+        self.ip_row.set_subtitle(ip_address)
+        
+        # Sync button states with Tor status
+        if hasattr(self, 'start_button') and hasattr(self, 'stop_button'):
+            is_active = tor_status == "active"
+            self.start_button.set_sensitive(not is_active)  # Enable start when inactive
+            self.stop_button.set_sensitive(is_active)       # Enable stop when active
+            
+            # Also sync the Change IP button - only enable when Tor is running
+            if hasattr(self, 'change_btn'):
+                self.change_btn.set_sensitive(is_active)
 
     # Handle start button click
     def on_start_clicked(self, button):
+        # Show confirmation dialog
         dialog = Gtk.MessageDialog(
             transient_for=self.window,
             message_type=Gtk.MessageType.QUESTION,
             buttons=Gtk.ButtonsType.YES_NO,
-            text="Start Anonymous Browsing",
-            secondary_text="You are about to start the anonymous browsing service.\n\nAny active browsers will be closed and cache files deleted.\n\nDo you wish to continue?"
+            text="Start AnonSurf",
+            secondary_text="You are about to start the anonymous browsing service.\n\nActive browsers will be closed and cache files deleted.\n\nDo you wish to continue?"
         )
         
         dialog.connect("response", self.on_start_response)
         dialog.show()
-    
 
     # Handle start dialog response
     def on_start_response(self, dialog, response):
         dialog.destroy()
         if response == Gtk.ResponseType.YES:
+            # Disable start button temporarily
+            self.start_button.set_sensitive(False)
             self.run_anonsurf_command("start", "Starting anonymous browsing mode...")
-    
 
     # Handle stop button click
     def on_stop_clicked(self, button):
+        # Show confirmation dialog
         dialog = Gtk.MessageDialog(
             transient_for=self.window,
             message_type=Gtk.MessageType.QUESTION,
             buttons=Gtk.ButtonsType.YES_NO,
-            text="Stop Anonymous Browsing",
-            secondary_text="You are about to stop anonymous browsing.\n\nAny active browsers will be closed and cache files deleted.\n\nDo you wish to continue?"
+            text="Stop AnonSurf",
+            secondary_text="You are about to stop anonymous browsing.\n\nActive browsers will be closed and cache files deleted.\n\nDo you wish to continue?"
         )
         
         dialog.connect("response", self.on_stop_response)
         dialog.show()
-    
 
     # Handle stop dialog response
     def on_stop_response(self, dialog, response):
         dialog.destroy()
         if response == Gtk.ResponseType.YES:
+            # Disable stop button temporarily
+            self.stop_button.set_sensitive(False)
             self.run_anonsurf_command("stop", "Stopping anonymous browsing mode...")
     
+
+    # Handle refresh button click
+    def on_refresh_clicked(self, button):
+        self.update_status()
 
     # Handle change IP button click
     def on_change_clicked(self, button):
@@ -368,85 +432,83 @@ class AnonSurfGUI:
 
     # Show IP information dialog
     def show_info_dialog(self, info_text: str):
-        dialog = Gtk.Dialog()
-        dialog.set_title("IP Address Details")
-        dialog.set_transient_for(self.window)
-        dialog.set_modal(True)
-        dialog.set_default_size(350, 400)
+        """Show IP information in an Adwaita-styled window"""
+        info_win = Adw.ApplicationWindow()
+        info_win.set_title("Public IP Address Details")
+        info_win.set_default_size(400, 350)
+        info_win.set_transient_for(self.window)
+        info_win.set_modal(True)
         
-        content_area = dialog.get_content_area()
-        content_area.set_hexpand(True)
-        content_area.set_vexpand(True)
-        # Add padding of 5 around content area
-        content_area.set_margin_start(5)
-        content_area.set_margin_end(5)
-        content_area.set_margin_top(5)
-        content_area.set_margin_bottom(5)
+        # Content layout with clamp and vertical box
+        clamp = Adw.Clamp()
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        vbox.set_margin_start(10)
+        vbox.set_margin_end(10)
+        vbox.set_margin_top(10)
+        vbox.set_margin_bottom(10)
+        clamp.set_child(vbox)
         
-        scrolled_window = Gtk.ScrolledWindow()
-        scrolled_window.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
-        scrolled_window.set_hexpand(True)
-        scrolled_window.set_vexpand(True)
-        #scrolled_window.set_min_content_width(350)
-        #scrolled_window.set_min_content_height(350)
-        
+        scrolled = Gtk.ScrolledWindow()
+        scrolled.set_hexpand(True)
+        scrolled.set_vexpand(True)
         text_view = Gtk.TextView()
         text_view.set_editable(False)
         text_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
-        text_view.set_hexpand(True)
-        text_view.set_vexpand(True)
-        
         buffer = text_view.get_buffer()
         buffer.set_text(info_text)
+        scrolled.set_child(text_view)
+        vbox.append(scrolled)
         
-        scrolled_window.set_child(text_view)
-        content_area.append(scrolled_window)
+        # Actions row
+        actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        actions.set_halign(Gtk.Align.END)
         
-        dialog.add_button("Copy to clipboard", Gtk.ResponseType.APPLY)
-        dialog.add_button("Save to file…", Gtk.ResponseType.ACCEPT)
-        dialog.add_button("Close", Gtk.ResponseType.CLOSE)
-        dialog.set_default_response(Gtk.ResponseType.CLOSE)
+        copy_btn = Gtk.Button.new_with_label("Copy")
+        copy_btn.set_tooltip_text("Copy to clipboard")
+        def on_copy(_btn):
+            display = info_win.get_display()
+            clipboard = display.get_clipboard()
+            data = info_text.encode('utf-8')
+            bytes_obj = GLib.Bytes.new(data)
+            provider = Gdk.ContentProvider.new_for_bytes('text/plain;charset=utf-8', bytes_obj)
+            clipboard.set(provider)
+        copy_btn.connect("clicked", on_copy)
+        actions.append(copy_btn)
         
-        def on_info_response(dlg, response):
-            if response == Gtk.ResponseType.APPLY:
-                # Copy text to clipboard using GTK4/GDK clipboard APIs
-                display = self.window.get_display()
-                clipboard = display.get_clipboard()
-                data = info_text.encode('utf-8')
-                bytes_obj = GLib.Bytes.new(data)
-                provider = Gdk.ContentProvider.new_for_bytes('text/plain;charset=utf-8', bytes_obj)
-                clipboard.set(provider)
-                dlg.destroy()
-            elif response == Gtk.ResponseType.ACCEPT:
-                # Save to file via GTK4 FileDialog
-                file_dialog = Gtk.FileDialog()
-                file_dialog.set_initial_name("ip-info.txt")
-                
-                def on_save_complete(fdlg, res):
-                    try:
-                        gfile = fdlg.save_finish(res)
-                        if gfile is not None:
-                            path = gfile.get_path() if hasattr(gfile, 'get_path') else None
-                            if path:
-                                try:
-                                    with open(path, 'w', encoding='utf-8') as f:
-                                        f.write(info_text)
-                                    GLib.idle_add(self.show_notification, f"Saved to {path}")
-                                except Exception as e:
-                                    GLib.idle_add(self.show_error, f"Failed to write file: {e}")
-                    except Exception as e:
-                        GLib.idle_add(self.show_error, f"Save cancelled or failed: {e}")
-                    finally:
-                        # Close the info dialog after save completes
-                        dlg.destroy()
-                
-                # Trigger async save; keep the dialog open until callback finishes
-                file_dialog.save(self.window, None, on_save_complete)
-            else:
-                dlg.destroy()
+        save_btn = Gtk.Button.new_with_label("Save")
+        save_btn.set_tooltip_text("Save to file…")
+
+        def on_save(_btn):
+            file_dialog = Gtk.FileDialog()
+            file_dialog.set_initial_name("ip-info.txt")
+            def on_save_complete(fdlg, res):
+                try:
+                    gfile = fdlg.save_finish(res)
+                    if gfile is not None:
+                        path = gfile.get_path() if hasattr(gfile, 'get_path') else None
+                        if path:
+                            try:
+                                with open(path, 'w', encoding='utf-8') as f:
+                                    f.write(info_text)
+                                self.show_notification(f"Saved to {path}")
+                            except Exception as e:
+                                self.show_error(f"Failed to write file: {e}")
+                except Exception as e:
+                    self.show_error(f"Save cancelled or failed: {e}")
+            file_dialog.save(info_win, None, on_save_complete)
         
-        dialog.connect("response", on_info_response)
-        dialog.show()
+        save_btn.connect("clicked", on_save)
+        actions.append(save_btn)
+        
+        close_btn = Gtk.Button.new_with_label("Close")
+        close_btn.set_tooltip_text("Close")
+        close_btn.connect("clicked", lambda _b: info_win.destroy())
+        actions.append(close_btn)
+        
+        vbox.append(actions)
+        
+        info_win.set_content(clamp)
+        info_win.present()
     
 
     # Run AnonSurf command with progress dialog
@@ -473,22 +535,34 @@ class AnonSurfGUI:
                 GLib.idle_add(self.show_error, error_msg)
         
         # Show progress dialog
-        progress_dialog = Gtk.Dialog()
-        progress_dialog.set_title("AnonSurf")
-        progress_dialog.set_transient_for(self.window)
-        progress_dialog.set_modal(True)
-        progress_dialog.set_default_size(300, 100)
+        progress_win = Adw.ApplicationWindow()
+        progress_win.set_title("AnonSurf")
+        progress_win.set_default_size(350, 150)
+        progress_win.set_transient_for(self.window)
+        progress_win.set_modal(True)
         
-        content_area = progress_dialog.get_content_area()
+        # Content layout with clamp and vertical box
+        clamp = Adw.Clamp()
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+        vbox.set_margin_start(20)
+        vbox.set_margin_end(20)
+        vbox.set_margin_top(20)
+        vbox.set_margin_bottom(20)
+        clamp.set_child(vbox)
         
+        # Progress label
         label = Gtk.Label(label=progress_text)
+        label.set_halign(Gtk.Align.CENTER)
+        vbox.append(label)
+        
+        # Progress bar
         progress_bar = Gtk.ProgressBar()
         progress_bar.set_fraction(0.0)
+        progress_bar.set_hexpand(True)
+        vbox.append(progress_bar)
         
-        content_area.append(label)
-        content_area.append(progress_bar)
-        
-        progress_dialog.show()
+        progress_win.set_content(clamp)
+        progress_win.present()
         
         # Animate progress bar
         def animate_progress():
@@ -506,55 +580,93 @@ class AnonSurfGUI:
         thread.start()
         
         # Close progress dialog after a delay
-        GLib.timeout_add(2000, progress_dialog.destroy)
+        GLib.timeout_add(2000, progress_win.destroy)
     
 
     # Show error dialog
     def show_error(self, message: str):
-        dialog = Gtk.MessageDialog(
-            transient_for=self.window,
-            message_type=Gtk.MessageType.ERROR,
-            buttons=Gtk.ButtonsType.OK,
-            text="Error",
-            secondary_text=message
-        )
-        dialog.connect("response", lambda d, r: d.destroy())
-        dialog.show()
-    
-
+        error_win = Adw.ApplicationWindow()
+        error_win.set_title("Error")
+        error_win.set_default_size(400, 200)
+        error_win.set_transient_for(self.window)
+        error_win.set_modal(True)
+        
+        # Content layout with clamp and vertical box
+        clamp = Adw.Clamp()
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+        vbox.set_margin_start(20)
+        vbox.set_margin_end(20)
+        vbox.set_margin_top(20)
+        vbox.set_margin_bottom(20)
+        clamp.set_child(vbox)
+        
+        # Error icon and message
+        error_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        error_icon = Gtk.Image.new_from_icon_name("dialog-error-symbolic")
+        error_icon.set_pixel_size(48)
+        error_box.append(error_icon)
+        
+        error_label = Gtk.Label(label=message)
+        error_label.set_wrap(True)
+        error_label.set_hexpand(True)
+        error_box.append(error_label)
+        
+        vbox.append(error_box)
+        
+        # Close button
+        close_btn = Gtk.Button.new_with_label("Close")
+        close_btn.set_halign(Gtk.Align.END)
+        close_btn.connect("clicked", lambda _b: error_win.destroy())
+        vbox.append(close_btn)
+        
+        error_win.set_content(clamp)
+        error_win.present()
 
     # Show notification (simplified version)
     def show_notification(self, message: str):
-        dialog = Gtk.MessageDialog(
-            transient_for=self.window,
-            message_type=Gtk.MessageType.INFO,
-            buttons=Gtk.ButtonsType.OK,
-            text="AnonSurf",
-            secondary_text=message
-        )
-        dialog.connect("response", lambda d, r: d.destroy())
-        dialog.show()
-
-    def schedule_window_size_adjust(self):
-        def try_adjust():
-            w1 = self.start_button_ref.get_allocated_width()
-            h1 = self.start_button_ref.get_allocated_height()
-            w2 = self.stop_button_ref.get_allocated_width()
-            h2 = self.stop_button_ref.get_allocated_height()
-            # Wait until allocation happens
-            if w1 == 0 or w2 == 0 or h1 == 0 or h2 == 0:
-                return True  # keep trying
-            width = w1 + w2 + self.start_stop_spacing + self.vbox_margin_total_h
-            height = max(h1, h2) + self.vbox_margin_total_v
-            self.window.set_default_size(width, height)
-            return False
-        GLib.timeout_add(50, try_adjust)
+        """Show notification (fallback dialog for environments without ToastOverlay)"""
+        notif_win = Adw.ApplicationWindow()
+        notif_win.set_title("AnonSurf")
+        notif_win.set_default_size(400, 200)
+        notif_win.set_transient_for(self.window)
+        notif_win.set_modal(True)
+        
+        # Content layout with clamp and vertical box
+        clamp = Adw.Clamp()
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+        vbox.set_margin_start(20)
+        vbox.set_margin_end(20)
+        vbox.set_margin_top(20)
+        vbox.set_margin_bottom(20)
+        clamp.set_child(vbox)
+        
+        # Success icon and message
+        success_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        success_icon = Gtk.Image.new_from_icon_name("emblem-ok-symbolic")
+        success_icon.set_pixel_size(48)
+        success_box.append(success_icon)
+        
+        success_label = Gtk.Label(label=message)
+        success_label.set_wrap(True)
+        success_label.set_hexpand(True)
+        success_box.append(success_label)
+        
+        vbox.append(success_box)
+        
+        # Close button
+        close_btn = Gtk.Button.new_with_label("Close")
+        close_btn.set_halign(Gtk.Align.END)
+        close_btn.connect("clicked", lambda _b: notif_win.destroy())
+        vbox.append(close_btn)
+        
+        notif_win.set_content(clamp)
+        notif_win.present()
 
 
 
 def main():
-    # Create GTK application
-    app = Gtk.Application(application_id="org.anonsurf.gui")
+    # Create Adwaita application
+    app = Adw.Application(application_id="org.anonsurf.gui")
     
     def on_activate(application):
         window = AnonSurfGUI()
