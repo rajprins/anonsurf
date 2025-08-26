@@ -30,9 +30,49 @@ class AnonSurfGUI:
         self.window.set_name("anonsurf")  # Set internal name
         self.window.connect("close-request", self.on_window_close)
         
+        # Add CSS styling for regular font weight
+        css_provider = Gtk.CssProvider()
+        css_provider.load_from_data("""
+        .regular-weight {
+            font-weight: normal;
+        }
+        """.encode())
+        Gtk.StyleContext.add_provider_for_display(
+            Gdk.Display.get_default(),
+            css_provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
+        
         # Add a Gtk.HeaderBar with default window controls
         headerbar = Gtk.HeaderBar()
         headerbar.set_title_widget(Gtk.Label(label="AnonSurf"))
+        
+        # Add menu button with dropdown
+        menu_button = Gtk.MenuButton()
+        menu_button.set_icon_name("open-menu-symbolic")
+        menu_button.set_tooltip_text("Menu")
+        
+        # Create popover menu
+        popover = Gtk.PopoverMenu()
+        menu_button.set_popover(popover)
+        
+        # Store popover reference for closing
+        self.about_popover = popover
+        
+        # Create menu box
+        menu_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        popover.set_child(menu_box)
+        
+        # Add About menu item
+        about_item = Gtk.Button()
+        about_item.set_label("About AnonSurf")
+        about_item.connect("clicked", self.on_about_clicked)
+        about_item.add_css_class("flat")
+        about_item.add_css_class("regular-weight")
+        menu_box.append(about_item)
+        
+        headerbar.pack_end(menu_button)
+        
         self.window.set_titlebar(headerbar)
         
         # Store password for sudo operations
@@ -103,7 +143,7 @@ class AnonSurfGUI:
                 # Store entry reference for response handler
                 dialog.entry = entry
                 dialog.connect("response", self.on_sudo_response)
-                dialog.show()
+                dialog.present()
                 
                 # Wait for response using a simple loop (not ideal but works)
                 self.sudo_response = None
@@ -269,7 +309,6 @@ class AnonSurfGUI:
         
         self.window.set_default_size(400, 470)
         self.window.set_resizable(False)
-        self.window.show()
     
 
     # Update the status display
@@ -335,7 +374,7 @@ class AnonSurfGUI:
         )
         
         dialog.connect("response", self.on_start_response)
-        dialog.show()
+        dialog.present()
 
     # Handle start dialog response
     def on_start_response(self, dialog, response):
@@ -357,7 +396,7 @@ class AnonSurfGUI:
         )
         
         dialog.connect("response", self.on_stop_response)
-        dialog.show()
+        dialog.present()
 
     # Handle stop dialog response
     def on_stop_response(self, dialog, response):
@@ -642,7 +681,7 @@ class AnonSurfGUI:
         
         # Success icon and message
         success_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-        success_icon = Gtk.Image.new_from_icon_name("emblem-ok-symbolic")
+        success_icon = Gtk.Image.new_from_icon_name("anonsurf")
         success_icon.set_pixel_size(48)
         success_box.append(success_icon)
         
@@ -661,6 +700,64 @@ class AnonSurfGUI:
         
         notif_win.set_content(clamp)
         notif_win.present()
+
+    # Show About dialog
+    def on_about_clicked(self, button):
+        # Close the popover menu
+        if hasattr(self, 'about_popover'):
+            self.about_popover.popdown()
+        
+        about_win = Adw.ApplicationWindow()
+        about_win.set_title("About AnonSurf")
+        about_win.set_default_size(400, 300)
+        about_win.set_transient_for(self.window)
+        about_win.set_modal(True)
+        
+        # Content layout with clamp and vertical box
+        clamp = Adw.Clamp()
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+        vbox.set_margin_start(20)
+        vbox.set_margin_end(20)
+        vbox.set_margin_top(20)
+        vbox.set_margin_bottom(20)
+        clamp.set_child(vbox)
+        
+        # App icon and title
+        icon_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        icon_box.set_halign(Gtk.Align.CENTER)
+        
+        app_icon = Gtk.Image.new_from_icon_name("anonsurf")
+        app_icon.set_pixel_size(64)
+        icon_box.append(app_icon)
+        
+        app_title = Gtk.Label(label="AnonSurf")
+        app_title.add_css_class("title-1")
+        icon_box.append(app_title)
+        
+        vbox.append(icon_box)
+        
+        # Version
+        version_label = Gtk.Label(label="Version 1.1.0")
+        version_label.add_css_class("dim-label")
+        version_label.set_halign(Gtk.Align.CENTER)
+        vbox.append(version_label)
+        
+        # Description
+        desc_label = Gtk.Label(label="Anonymous browsing service")
+        desc_label.set_wrap(True)
+        desc_label.set_halign(Gtk.Align.CENTER)
+        desc_label.set_margin_top(16)
+        vbox.append(desc_label)
+        
+        # Close button
+        close_btn = Gtk.Button.new_with_label("Close")
+        close_btn.set_halign(Gtk.Align.CENTER)
+        close_btn.set_margin_top(16)
+        close_btn.connect("clicked", lambda _b: about_win.destroy())
+        vbox.append(close_btn)
+        
+        about_win.set_content(clamp)
+        about_win.present()
 
 
 
