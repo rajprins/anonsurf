@@ -63,6 +63,14 @@ class AnonSurfGUI:
             margin: 0;
             padding: 0;
         }
+        .tor-active {
+            background-color: #e8f5e8;
+            border: 2px solid #4caf50;
+        }
+        .tor-inactive {
+            background-color: #ffebee;
+            border: 2px solid #f44336;
+        }
         """.encode())
         Gtk.StyleContext.add_provider_for_display(
             Gdk.Display.get_default(),
@@ -482,6 +490,17 @@ class AnonSurfGUI:
         self.tor_row.set_subtitle(tor_status)
         self.ip_row.set_subtitle(ip_address)
         
+        # Apply window color based on Tor status
+        # Remove existing status classes first
+        self.window.remove_css_class("tor-active")
+        self.window.remove_css_class("tor-inactive")
+        
+        # Add appropriate status class
+        if tor_status == "active":
+            self.window.add_css_class("tor-active")
+        else:
+            self.window.add_css_class("tor-inactive")
+        
         # Sync button states with Tor status
         if hasattr(self, 'start_button') and hasattr(self, 'stop_button'):
             is_active = tor_status == "active"
@@ -815,7 +834,7 @@ class AnonSurfGUI:
     # Show notification (simplified version)
     def show_notification(self, message: str):
         """Show notification (fallback dialog for environments without ToastOverlay)"""
-        notif_win, vbox = self._create_dialog_window("AnonSurf", (350, 150))
+        notif_win, vbox = self._create_dialog_window("AnonSurf", (400, 150))
         
         # Success icon and message
         success_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
@@ -832,7 +851,7 @@ class AnonSurfGUI:
         
         # Close button
         close_btn = Gtk.Button.new_with_label("Close")
-        close_btn.set_halign(Gtk.Align.END)
+        close_btn.set_halign(Gtk.Align.CENTER)
         close_btn.connect("clicked", lambda _b: notif_win.destroy())
         vbox.append(close_btn)
         
