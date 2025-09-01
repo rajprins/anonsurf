@@ -97,10 +97,17 @@ To start anonymous browsing, select action "start" and click the OK button.
 ![start](https://github.com/rajprins/anonsurf/raw/master/images/002.png)
 
 When starting an action like starting or stopping the anonymous service, a progress bar will be displayed. Click the OK button after completion to close the dialog.  
-![progress](https://github.com/rajprins/anonsurf/raw/master/images/003.png)
+![progress](https://github.com/rajprins/anonsurf/raw/master/images/003.png)  
 
-At any time, you can verify your IP address (and geo location details for that IP address) using the "status" option.
-![status](https://github.com/rajprins/anonsurf/raw/master/images/004.png)
+![progress](https://github.com/rajprins/anonsurf/raw/master/images/004.png)
+
+If the anonymous browser service started successfully, the color changes to green to indicate a safe connection.  
+Also, the new public IP address is displayed, and a status indicator.
+![progress](https://github.com/rajprins/anonsurf/raw/master/images/005.png)
+
+At any time, you can verify your IP address (and geo location details for that IP address) using the "IP Address Details" button.
+![status](https://github.com/rajprins/anonsurf/raw/master/images/006.png)
+
 
 ## Using Anonsurf (command line)
 Anonsurf comes with a terminal version and a GUI version.  

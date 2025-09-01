@@ -67,9 +67,17 @@ class AnonSurfGUI:
             background-color: #e8f5e8;
             border: 2px solid #4caf50;
         }
+        .tor-active headerbar {
+            background-color: #4caf50;
+            color: white;
+        }
         .tor-inactive {
             background-color: #ffebee;
             border: 2px solid #f44336;
+        }
+        .tor-inactive headerbar {
+            background-color: #f44336;
+            color: white;
         }
         """.encode())
         Gtk.StyleContext.add_provider_for_display(
