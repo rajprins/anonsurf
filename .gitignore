@@ -1,2 +1,4 @@
 anonsurf.deb
 
+# Python stuff
+__pycache__

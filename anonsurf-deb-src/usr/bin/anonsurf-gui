@@ -12,15 +12,24 @@ import threading
 import tempfile
 import xml.etree.ElementTree as ET
 from typing import Optional
+import time
+import signal
 
 # Try to set process name for better identification
 try:
     import setproctitle
     setproctitle.setproctitle("anonsurf")
 except ImportError:
-    # Fallback: try to set argv[0]
+    # Fallback: try to set argv[0] (works on most systems)
     if len(sys.argv) > 0:
         sys.argv[0] = "anonsurf"
+    # Alternative: try to set process title via ctypes (Linux only)
+    try:
+        import ctypes
+        libc = ctypes.CDLL("libc.so.6")
+        libc.prctl(15, b"anonsurf", 0, 0, 0)  # PR_SET_NAME = 15
+    except (ImportError, OSError, AttributeError):
+        pass  # Silently fail if not supported
 
 class AnonSurfGUI:
     def __init__(self):
@@ -30,11 +39,29 @@ class AnonSurfGUI:
         self.window.set_name("anonsurf")  # Set internal name
         self.window.connect("close-request", self.on_window_close)
         
+        # Performance optimizations
+        self._status_cache = {}
+        self._last_status_check = 0
+        self._status_cache_timeout = 2.0  # Cache for 2 seconds
+        self._subprocess_timeout = 10.0  # 10 second timeout for subprocess calls
+        
         # Add CSS styling for regular font weight
         css_provider = Gtk.CssProvider()
         css_provider.load_from_data("""
         .regular-weight {
             font-weight: normal;
+        }
+        .header-title {
+            font-size: 14px;
+            font-weight: 800;
+        }
+        .header-title-box {
+            margin: 0;
+            padding: 0;
+        }
+        .header-title-box label {
+            margin: 0;
+            padding: 0;
         }
         """.encode())
         Gtk.StyleContext.add_provider_for_display(
@@ -43,17 +70,37 @@ class AnonSurfGUI:
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
         
-        # Add a Gtk.HeaderBar with default window controls
+        # Add a Gtk.HeaderBar with title and subtitle
         headerbar = Gtk.HeaderBar()
-        headerbar.set_title_widget(Gtk.Label(label="AnonSurf"))
+        headerbar.set_show_title_buttons(True)
+        
+        # Create title box with proper vertical centering
+        title_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        title_box.set_halign(Gtk.Align.CENTER)
+        title_box.set_valign(Gtk.Align.CENTER)
+        title_box.add_css_class("header-title-box")
+        
+        title_label = Gtk.Label(label="AnonSurf")
+        title_label.add_css_class("header-title")
+        title_label.set_halign(Gtk.Align.CENTER)
+        title_label.set_valign(Gtk.Align.CENTER)
+        
+        subtitle_label = Gtk.Label(label="Anonymous Browsing Service")
+        subtitle_label.add_css_class("dim-label")
+        subtitle_label.set_halign(Gtk.Align.CENTER)
+        subtitle_label.set_valign(Gtk.Align.CENTER)
+        
+        title_box.append(title_label)
+        title_box.append(subtitle_label)
+        headerbar.set_title_widget(title_box)
         
         # Add menu button with dropdown
         menu_button = Gtk.MenuButton()
         menu_button.set_icon_name("open-menu-symbolic")
         menu_button.set_tooltip_text("Menu")
         
-        # Create popover menu
-        popover = Gtk.PopoverMenu()
+        # Create popover menu (use Gtk.Popover to host custom content)
+        popover = Gtk.Popover()
         menu_button.set_popover(popover)
         
         # Store popover reference for closing
@@ -69,7 +116,27 @@ class AnonSurfGUI:
         about_item.connect("clicked", self.on_about_clicked)
         about_item.add_css_class("flat")
         about_item.add_css_class("regular-weight")
+        about_item.set_halign(Gtk.Align.FILL)
+        about_item.set_hexpand(True)
+        # Get the child label and set it to left-align
+        about_label = about_item.get_child()
+        if about_label:
+            about_label.set_halign(Gtk.Align.START)
         menu_box.append(about_item)
+        
+        # Add Quit menu item
+        quit_item = Gtk.Button()
+        quit_item.set_label("Quit")
+        quit_item.connect("clicked", self.on_quit_clicked)
+        quit_item.add_css_class("flat")
+        quit_item.add_css_class("regular-weight")
+        quit_item.set_halign(Gtk.Align.FILL)
+        quit_item.set_hexpand(True)
+        # Get the child label and set it to left-align
+        quit_label = quit_item.get_child()
+        if quit_label:
+            quit_label.set_halign(Gtk.Align.START)
+        menu_box.append(quit_item)
         
         headerbar.pack_end(menu_button)
         
@@ -110,6 +177,48 @@ class AnonSurfGUI:
             return False
         
         return True
+    
+    # Safe subprocess execution with timeout
+    def _run_subprocess_safe(self, cmd, input_data=None, timeout=None):
+        """Run subprocess with timeout and proper error handling"""
+        if timeout is None:
+            timeout = self._subprocess_timeout
+        
+        try:
+            result = subprocess.run(
+                cmd,
+                input=input_data,
+                    capture_output=True,
+                    text=True,
+                check=True,
+                timeout=timeout
+            )
+            return result
+        except subprocess.TimeoutExpired:
+            raise subprocess.CalledProcessError(1, cmd, "Command timed out")
+        except subprocess.CalledProcessError as e:
+            raise e
+    
+    # Helper for creating consistent dialog windows
+    def _create_dialog_window(self, title, default_size=(400, 200), modal=True):
+        """Create a standardized dialog window with consistent styling"""
+        dialog = Adw.ApplicationWindow()
+        dialog.set_title(title)
+        dialog.set_default_size(*default_size)
+        dialog.set_transient_for(self.window)
+        dialog.set_modal(modal)
+        
+        # Create consistent layout structure
+        clamp = Adw.Clamp()
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+        vbox.set_margin_start(20)
+        vbox.set_margin_end(20)
+        vbox.set_margin_top(20)
+        vbox.set_margin_bottom(20)
+        clamp.set_child(vbox)
+        dialog.set_content(clamp)
+        
+        return dialog, vbox
     
     # Initialize sudo access
     def init_sudo(self) -> bool:
@@ -312,34 +421,55 @@ class AnonSurfGUI:
     
 
     # Update the status display
-    def update_status(self):
+    def update_status(self, force_refresh=False):
+        """Update status with caching to reduce system calls"""
+        current_time = time.time()
+        
+        # Check cache first (unless force refresh)
+        if not force_refresh and (current_time - self._last_status_check) < self._status_cache_timeout:
+            if 'tor_status' in self._status_cache and 'ip_address' in self._status_cache:
+                self.update_status_labels(
+                    self._status_cache['tor_status'], 
+                    self._status_cache['ip_address']
+                )
+                return
+        
         def update():
-            # Get Tor status
             try:
-                result = subprocess.run(
-                    ['systemctl', 'is-active', 'tor'],
-                    capture_output=True,
-                    text=True,
-                    check=True
-                )
-                tor_status = result.stdout.strip()
-            except subprocess.CalledProcessError:
-                tor_status = "inactive"
+                # Get Tor status with timeout
+                try:
+                    result = self._run_subprocess_safe(['systemctl', 'is-active', 'tor'], timeout=5.0)
+                    tor_status = result.stdout.strip()
+                except subprocess.CalledProcessError:
+                    tor_status = "inactive"
 
-            # Get IP address
-            try:
-                result = subprocess.run(
-                    ['curl', '-s', 'icanhazip.com'],
-                    capture_output=True,
-                    text=True,
-                    check=True
-                )
-                ip_address = result.stdout.strip()
-            except subprocess.CalledProcessError:
-                ip_address = "Unknown"
+                # Get IP address with timeout (only if Tor is active to reduce unnecessary calls)
+                if tor_status == "active":
+                    try:
+                        result = self._run_subprocess_safe(['curl', '-s', '--max-time', '8', 'icanhazip.com'], timeout=10.0)
+                        ip_address = result.stdout.strip()
+                        # Validate IP format
+                        if not ip_address or len(ip_address.split('.')) != 4:
+                            ip_address = "Unknown"
+                    except subprocess.CalledProcessError:
+                        ip_address = "Unknown"
+                else:
+                    # Don't waste time checking IP if Tor is inactive
+                    ip_address = "Not connected"
 
-            # Update UI in main thread
-            GLib.idle_add(self.update_status_labels, tor_status, ip_address)
+                # Cache results
+                self._status_cache = {
+                    'tor_status': tor_status,
+                    'ip_address': ip_address
+                }
+                self._last_status_check = time.time()
+
+                # Update UI in main thread
+                GLib.idle_add(self.update_status_labels, tor_status, ip_address)
+                
+            except Exception as e:
+                # Fallback on any error
+                GLib.idle_add(self.update_status_labels, "Error", f"Error: {str(e)}")
 
         # Run in background thread
         thread = threading.Thread(target=update)
@@ -409,7 +539,8 @@ class AnonSurfGUI:
 
     # Handle refresh button click
     def on_refresh_clicked(self, button):
-        self.update_status()
+        # Force refresh bypasses cache
+        self.update_status(force_refresh=True)
 
     # Handle change IP button click
     def on_change_clicked(self, button):
@@ -423,41 +554,75 @@ class AnonSurfGUI:
                 # Build command with sudo as needed
                 if self.password:
                     cmd = ['sudo', '-S', '/etc/init.d/anonsurf', 'ipinfo']
-                    result = subprocess.run(
-                        cmd,
-                        input=self.password.encode(),
-                        capture_output=True,
-                        text=True,
-                        check=True
-                    )
+                    result = self._run_subprocess_safe(cmd, input_data=self.password.encode(), timeout=15.0)
                 elif self.can_sudo_nopass:
                     cmd = ['sudo', '-n', '/etc/init.d/anonsurf', 'ipinfo']
-                    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+                    result = self._run_subprocess_safe(cmd, timeout=15.0)
                 else:
                     # As a last resort try without sudo (may fail)
                     cmd = ['/etc/init.d/anonsurf', 'ipinfo']
-                    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+                    result = self._run_subprocess_safe(cmd, timeout=15.0)
                 
-                # Parse XML output
-                output_lines = result.stdout.split('\n')[2:-2]  # Skip first 2 and last 2 lines
-                parsed_info = []
-                
-                for line in output_lines:
-                    if line.strip():
-                        try:
-                            # Simple XML parsing
-                            if '>' in line and '<' in line:
-                                parts = line.split('>')
-                                if len(parts) >= 2:
-                                    entity = parts[0].split('<')[-1]
-                                    content = parts[1].split('<')[0]
-                                    if content.strip():
-                                        parsed_info.append(f"{entity}: {content}")
-                        except Exception:
-                            # If parsing fails, just add the line as is
-                            parsed_info.append(line.strip())
-                
-                info_text = '\n'.join(parsed_info) if parsed_info else "No IP information available"
+                # Parse XML output with proper XML parser
+                try:
+                    # Try to parse as XML first
+                    xml_content = result.stdout.strip()
+                    
+                    # Clean up the XML by removing non-XML lines
+                    lines = xml_content.split('\n')
+                    xml_lines = []
+                    in_xml = False
+                    
+                    for line in lines:
+                        if line.strip().startswith('<') and not in_xml:
+                            in_xml = True
+                        if in_xml:
+                            xml_lines.append(line)
+                        if line.strip().endswith('>') and '/' in line:
+                            break
+                    
+                    xml_data = '\n'.join(xml_lines)
+                    
+                    if xml_data.strip():
+                        # Parse with ElementTree for better performance and reliability
+                        root = ET.fromstring(xml_data)
+                        parsed_info = []
+                        
+                        # Extract all text content from XML elements
+                        for elem in root.iter():
+                            if elem.text and elem.text.strip():
+                                tag_name = elem.tag.replace('_', ' ').title()
+                                parsed_info.append(f"{tag_name}: {elem.text.strip()}")
+                        
+                        info_text = '\n'.join(parsed_info) if parsed_info else "No IP information available"
+                    else:
+                        # Fallback to plain text output
+                        info_text = result.stdout.strip() or "No IP information available"
+                        
+                except (ET.ParseError, Exception):
+                    # Fallback to simple text processing if XML parsing fails
+                    lines = result.stdout.split('\n')
+                    parsed_info = []
+                    
+                    for line in lines:
+                        line = line.strip()
+                        if line and not line.startswith('<?') and not line.startswith('<!'):
+                            # Simple tag extraction
+                            if '<' in line and '>' in line:
+                                try:
+                                    start = line.find('>') + 1
+                                    end = line.rfind('<')
+                                    if start > 0 and end > start:
+                                        content = line[start:end].strip()
+                                        if content:
+                                            tag = line[line.find('<')+1:line.find('>')]
+                                            parsed_info.append(f"{tag}: {content}")
+                                except:
+                                    pass
+                            else:
+                                parsed_info.append(line)
+                    
+                    info_text = '\n'.join(parsed_info) if parsed_info else "No IP information available"
                 GLib.idle_add(self.show_info_dialog, info_text)
                 
             except subprocess.CalledProcessError as e:
@@ -557,13 +722,13 @@ class AnonSurfGUI:
                 # Build command with sudo as needed
                 if self.password:
                     cmd = ['sudo', '-S', '/etc/init.d/anonsurf', action]
-                    subprocess.run(cmd, input=self.password.encode(), capture_output=True, text=True, check=True)
+                    self._run_subprocess_safe(cmd, input_data=self.password.encode(), timeout=30.0)
                 elif self.can_sudo_nopass:
                     cmd = ['sudo', '-n', '/etc/init.d/anonsurf', action]
-                    subprocess.run(cmd, capture_output=True, text=True, check=True)
+                    self._run_subprocess_safe(cmd, timeout=30.0)
                 else:
                     cmd = ['/etc/init.d/anonsurf', action]
-                    subprocess.run(cmd, capture_output=True, text=True, check=True)
+                    self._run_subprocess_safe(cmd, timeout=30.0)
                 
                 # Update status after command completes
                 GLib.idle_add(self.update_status)
@@ -624,20 +789,7 @@ class AnonSurfGUI:
 
     # Show error dialog
     def show_error(self, message: str):
-        error_win = Adw.ApplicationWindow()
-        error_win.set_title("Error")
-        error_win.set_default_size(400, 200)
-        error_win.set_transient_for(self.window)
-        error_win.set_modal(True)
-        
-        # Content layout with clamp and vertical box
-        clamp = Adw.Clamp()
-        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
-        vbox.set_margin_start(20)
-        vbox.set_margin_end(20)
-        vbox.set_margin_top(20)
-        vbox.set_margin_bottom(20)
-        clamp.set_child(vbox)
+        error_win, vbox = self._create_dialog_window("Error", (400, 200))
         
         # Error icon and message
         error_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
@@ -654,30 +806,16 @@ class AnonSurfGUI:
         
         # Close button
         close_btn = Gtk.Button.new_with_label("Close")
-        close_btn.set_halign(Gtk.Align.END)
+        close_btn.set_halign(Gtk.Align.CENTER)
         close_btn.connect("clicked", lambda _b: error_win.destroy())
         vbox.append(close_btn)
         
-        error_win.set_content(clamp)
         error_win.present()
 
     # Show notification (simplified version)
     def show_notification(self, message: str):
         """Show notification (fallback dialog for environments without ToastOverlay)"""
-        notif_win = Adw.ApplicationWindow()
-        notif_win.set_title("AnonSurf")
-        notif_win.set_default_size(400, 200)
-        notif_win.set_transient_for(self.window)
-        notif_win.set_modal(True)
-        
-        # Content layout with clamp and vertical box
-        clamp = Adw.Clamp()
-        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
-        vbox.set_margin_start(20)
-        vbox.set_margin_end(20)
-        vbox.set_margin_top(20)
-        vbox.set_margin_bottom(20)
-        clamp.set_child(vbox)
+        notif_win, vbox = self._create_dialog_window("AnonSurf", (350, 150))
         
         # Success icon and message
         success_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
@@ -698,7 +836,6 @@ class AnonSurfGUI:
         close_btn.connect("clicked", lambda _b: notif_win.destroy())
         vbox.append(close_btn)
         
-        notif_win.set_content(clamp)
         notif_win.present()
 
     # Show About dialog
@@ -758,6 +895,15 @@ class AnonSurfGUI:
         
         about_win.set_content(clamp)
         about_win.present()
+
+    # Handle quit menu item
+    def on_quit_clicked(self, button):
+        # Close the popover menu
+        if hasattr(self, 'about_popover'):
+            self.about_popover.popdown()
+        
+        # Quit the application
+        self.window.get_application().quit()
 
 
 
