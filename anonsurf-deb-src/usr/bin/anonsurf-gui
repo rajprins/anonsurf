@@ -15,21 +15,6 @@ from typing import Optional
 import time
 import signal
 
-# Try to set process name for better identification
-try:
-    import setproctitle
-    setproctitle.setproctitle("anonsurf")
-except ImportError:
-    # Fallback: try to set argv[0] (works on most systems)
-    if len(sys.argv) > 0:
-        sys.argv[0] = "anonsurf"
-    # Alternative: try to set process title via ctypes (Linux only)
-    try:
-        import ctypes
-        libc = ctypes.CDLL("libc.so.6")
-        libc.prctl(15, b"anonsurf", 0, 0, 0)  # PR_SET_NAME = 15
-    except (ImportError, OSError, AttributeError):
-        pass  # Silently fail if not supported
 
 class AnonSurfGUI:
     def __init__(self):
@@ -254,7 +239,7 @@ class AnonSurfGUI:
                 
                 content_area = dialog.get_content_area()
                 
-                label = Gtk.Label(label="Enter sudo password:")
+                label = Gtk.Label(label="Enter your password:")
                 entry = Gtk.PasswordEntry()
                 entry.set_activates_default(True)
                 
@@ -333,18 +318,12 @@ class AnonSurfGUI:
         status_group.add(self.tor_row)
         
         # IP address row with refresh suffix button
-        self.ip_row = Adw.ActionRow(title="IP Address", subtitle="Unknown")
-        refresh_button = Gtk.Button.new_from_icon_name("view-refresh-symbolic")
-        refresh_button.set_tooltip_text("Refresh status")
-        refresh_button.connect("clicked", self.on_refresh_clicked)
-        self.ip_row.add_suffix(refresh_button)
-        self.ip_row.set_activatable_widget(refresh_button)
+        self.ip_row = Adw.ActionRow(title="Public IP Address", subtitle="Unknown")
         status_group.add(self.ip_row)
         
         prefs_page.add(status_group)
         
         # Toggle button section (separate from other actions)
-        #toggle_group = Adw.PreferencesGroup(title="Service Control")
         toggle_group = Adw.PreferencesGroup()
         
         # Button container for start/stop
@@ -396,7 +375,6 @@ class AnonSurfGUI:
         prefs_page.add(toggle_group)
         
         # Actions section with traditional buttons
-        #actions_group = Adw.PreferencesGroup(title="Actions")
         actions_group = Adw.PreferencesGroup()
         
         # Button container for other actions
@@ -564,17 +542,12 @@ class AnonSurfGUI:
             self.run_anonsurf_command("stop", "Stopping anonymous browsing mode...")
     
 
-    # Handle refresh button click
-    def on_refresh_clicked(self, button):
-        # Force refresh bypasses cache
-        self.update_status(force_refresh=True)
-
     # Handle change IP button click
     def on_change_clicked(self, button):
         self.run_anonsurf_command("change", "Changing Tor nodes...")
     
 
-    # Handle info button click"
+    # Handle IP Details button click
     def on_info_clicked(self, button):
         def get_ip_info():
             try:
@@ -663,7 +636,6 @@ class AnonSurfGUI:
 
     # Show IP information dialog
     def show_info_dialog(self, info_text: str):
-        """Show IP information in an Adwaita-styled window"""
         info_win = Adw.ApplicationWindow()
         info_win.set_title("Public IP Address Details")
         info_win.set_default_size(400, 350)
@@ -841,7 +813,6 @@ class AnonSurfGUI:
 
     # Show notification (simplified version)
     def show_notification(self, message: str):
-        """Show notification (fallback dialog for environments without ToastOverlay)"""
         notif_win, vbox = self._create_dialog_window("AnonSurf", (400, 150))
         
         # Success icon and message
@@ -907,7 +878,7 @@ class AnonSurfGUI:
         vbox.append(version_label)
         
         # Description
-        desc_label = Gtk.Label(label="Anonymous browsing service")
+        desc_label = Gtk.Label(label="Anonymous Browsing Service\nA more secure way to browse the internet.")
         desc_label.set_wrap(True)
         desc_label.set_halign(Gtk.Align.CENTER)
         desc_label.set_margin_top(16)

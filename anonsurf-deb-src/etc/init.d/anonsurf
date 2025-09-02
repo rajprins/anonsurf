@@ -57,14 +57,14 @@ function ip {
 	#
 	echo
 	echo -e "${GREEN}>>>${BLUE} Geo location details${RESETCOLOR}"
-	curl -s http://ip-api.com/xml/${myip}?fields=17960957
+	curl -s http://ip-api.com/xml/${myip}?fields=5384185
 }
 
 
 ### Show IP address information (for GUI wrapper)
 function ipinfo {
 	MYIP=$(curl -s icanhazip.com)
-	curl -s http://ip-api.com/xml/${MYIP}?fields=17960957
+	curl -s http://ip-api.com/xml/${MYIP}?fields=5384185
 }
 
 
