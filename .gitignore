@@ -2,3 +2,7 @@ anonsurf.deb
 
 # Python stuff
 __pycache__
+
+# MacOS
+.DS_Store
+
