@@ -1,4 +1,8 @@
+# Project specific files
 anonsurf.deb
+anonsurf-gui.spec
+build/
+dist/
 
 # Python stuff
 __pycache__

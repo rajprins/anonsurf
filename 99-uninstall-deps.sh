@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-#
-#
-# Dependencies: tor secure-delete curl bleachbit iptables iptables-persistent
+
 
 BLUE='\033[1;94m'
 GREEN='\033[1;92m'

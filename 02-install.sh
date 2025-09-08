@@ -5,13 +5,23 @@ BLUE='\033[1;94m'
 GREEN='\033[1;92m'
 RED='\033[1;91m'
 RESETCOLOR='\033[1;00m'
-TARGET=anonsurf.deb
+TARGET=./dist/anonsurf.deb
 
 
 echo -e "${GREEN}>>> Enter your password:${RESETCOLOR}"
 sudo -v
-
 #echo "Apt::Cmd::Disable-Script-Warning true;" | sudo tee /etc/apt/apt.conf.d/90disablescriptwarning
+
+
+# check if package file exists
+if [[ ! -f $TARGET ]] ; then
+	echo
+	echo -e "${RED}>>> Error: installation package $TARGET not found.\nTry running script 01-package.sh.${RESETCOLOR}"
+	echo
+	echo "Exiting..."
+	exit 1
+fi
+
 
 echo
 echo -e "${GREEN}>>> Installing package $TARGET:${RESETCOLOR}"
