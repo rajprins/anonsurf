@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-#
-#
-# Dependencies: tor secure-delete curl bleachbit iptables iptables-persistent zenity
 
 
 BLUE='\033[1;94m'
