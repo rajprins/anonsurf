@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+set -e
 
 BLUE='\033[1;94m'
 GREEN='\033[1;92m'

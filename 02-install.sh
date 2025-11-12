@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+set -e
 
 BLUE='\033[1;94m'
 GREEN='\033[1;92m'
@@ -10,7 +11,7 @@ TARGET=./dist/anonsurf.deb
 
 echo -e "${GREEN}>>> Enter your password:${RESETCOLOR}"
 sudo -v
-#echo "Apt::Cmd::Disable-Script-Warning true;" | sudo tee /etc/apt/apt.conf.d/90disablescriptwarning
+echo "Apt::Cmd::Disable-Script-Warning true;" | sudo tee /etc/apt/apt.conf.d/90disablescriptwarning
 
 
 # check if package file exists
