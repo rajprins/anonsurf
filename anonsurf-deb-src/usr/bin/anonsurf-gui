@@ -220,6 +220,37 @@ class AnonSurfGUI:
         dialog.set_content(clamp)
         
         return dialog, vbox
+
+    # Create a simple confirmation dialog (replacement for Gtk.MessageDialog)
+    def _create_confirmation_dialog(self, title: str, primary_text: str, secondary_text: Optional[str] = None):
+        dialog = Gtk.Dialog()
+        dialog.set_transient_for(self.window)
+        dialog.set_modal(True)
+
+        content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        content_box.set_margin_start(10)
+        content_box.set_margin_end(10)
+
+        primary_label = Gtk.Label(label=primary_text)
+        primary_label.set_wrap(True)
+        primary_label.set_halign(Gtk.Align.START)
+        content_box.append(primary_label)
+
+        if secondary_text:
+            secondary_label = Gtk.Label(label=secondary_text)
+            secondary_label.set_wrap(True)
+            secondary_label.set_halign(Gtk.Align.START)
+            content_box.append(secondary_label)
+
+        dialog.set_child(content_box)
+        dialog.add_buttons("No", Gtk.ResponseType.NO, "Yes", Gtk.ResponseType.YES)
+
+        # Make 'No' the default to avoid accidental confirmation
+        no_widget = dialog.get_widget_for_response(Gtk.ResponseType.NO)
+        if no_widget:
+            dialog.set_default_widget(no_widget)
+
+        return dialog
     
     # Initialize sudo access
     def init_sudo(self) -> bool:
@@ -229,6 +260,10 @@ class AnonSurfGUI:
                 subprocess.run(['sudo', '-n', 'true'], check=True)
                 self.can_sudo_nopass = True
                 return True
+            except FileNotFoundError:
+                # `sudo` is not available on this system
+                self.show_error("Error: 'sudo' is not installed. Please install sudo or run as root.")
+                return False
             except subprocess.CalledProcessError:
                 # Need password
                 dialog = Gtk.Dialog()
@@ -237,18 +272,25 @@ class AnonSurfGUI:
                 dialog.set_modal(True)
                 dialog.set_default_size(300, 100)
                 
-                content_area = dialog.get_content_area()
-                
+                # Build dialog content using a container and set as the dialog child
+                content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+
                 label = Gtk.Label(label="Enter your password:")
                 entry = Gtk.PasswordEntry()
-                entry.set_activates_default(True)
-                
-                content_area.append(label)
-                content_area.append(entry)
-                
-                dialog.add_button("Cancel", Gtk.ResponseType.CANCEL)
-                dialog.add_button("OK", Gtk.ResponseType.OK)
-                dialog.set_default_response(Gtk.ResponseType.OK)
+                # Pressing Enter in the password entry should submit the dialog
+                entry.connect("activate", lambda _e: dialog.emit('response', Gtk.ResponseType.OK))
+
+                content_box.append(label)
+                content_box.append(entry)
+
+                dialog.set_child(content_box)
+
+                # Add buttons using the non-deprecated API and make OK the default widget
+                dialog.add_buttons("Cancel", Gtk.ResponseType.CANCEL, "OK", Gtk.ResponseType.OK)
+                ok_widget = dialog.get_widget_for_response(Gtk.ResponseType.OK)
+                if ok_widget:
+                    dialog.set_default_widget(ok_widget)
+                    dialog.set_receives_default(True)
                 
                 # Store entry reference for response handler
                 dialog.entry = entry
@@ -269,6 +311,9 @@ class AnonSurfGUI:
                     try:
                         subprocess.run(['sudo', '-S', 'true'], input=password.encode(), capture_output=True, check=True)
                         return True
+                    except FileNotFoundError:
+                        self.show_error("Error: 'sudo' is not installed. Please install sudo or run as root.")
+                        return False
                     except subprocess.CalledProcessError:
                         self.show_error("Error: Invalid password.")
                         return False
@@ -499,15 +544,13 @@ class AnonSurfGUI:
 
     # Handle start button click
     def on_start_clicked(self, button):
-        # Show confirmation dialog
-        dialog = Gtk.MessageDialog(
-            transient_for=self.window,
-            message_type=Gtk.MessageType.QUESTION,
-            buttons=Gtk.ButtonsType.YES_NO,
-            text="Start AnonSurf",
-            secondary_text="You are about to start the anonymous browsing service.\n\nActive browsers will be closed and cache files deleted.\n\nDo you wish to continue?"
+        # Show confirmation dialog (GTK4-friendly)
+        dialog = self._create_confirmation_dialog(
+            title="Start AnonSurf",
+            primary_text="Start AnonSurf",
+            secondary_text=("You are about to start the anonymous browsing service.\n\n"
+                            "Active browsers will be closed and cache files deleted.\n\nDo you wish to continue?")
         )
-        
         dialog.connect("response", self.on_start_response)
         dialog.present()
 
@@ -521,15 +564,13 @@ class AnonSurfGUI:
 
     # Handle stop button click
     def on_stop_clicked(self, button):
-        # Show confirmation dialog
-        dialog = Gtk.MessageDialog(
-            transient_for=self.window,
-            message_type=Gtk.MessageType.QUESTION,
-            buttons=Gtk.ButtonsType.YES_NO,
-            text="Stop AnonSurf",
-            secondary_text="You are about to stop anonymous browsing.\n\nActive browsers will be closed and cache files deleted.\n\nDo you wish to continue?"
+        # Show confirmation dialog (GTK4-friendly)
+        dialog = self._create_confirmation_dialog(
+            title="Stop AnonSurf",
+            primary_text="Stop AnonSurf",
+            secondary_text=("You are about to stop anonymous browsing.\n\n"
+                            "Active browsers will be closed and cache files deleted.\n\nDo you wish to continue?")
         )
-        
         dialog.connect("response", self.on_stop_response)
         dialog.present()
 
