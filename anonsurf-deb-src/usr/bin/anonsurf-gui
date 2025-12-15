@@ -5,6 +5,7 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Gdk', '4.0')
 gi.require_version('Adw', '1')
 from gi.repository import Gtk, Gdk, GLib, GObject, Adw
+import warnings
 import subprocess
 import os
 import sys
@@ -14,6 +15,10 @@ import xml.etree.ElementTree as ET
 from typing import Optional
 import time
 import signal
+
+
+
+ 
 
 
 class AnonSurfGUI:
@@ -32,7 +37,10 @@ class AnonSurfGUI:
         
         # Add CSS styling for regular font weight
         css_provider = Gtk.CssProvider()
-        css_provider.load_from_data("""
+        # Suppress upstream deprecation for CssProvider.load_from_data
+        # (the gi override emits a DeprecationWarning). We keep using
+        # load_from_data for compatibility but avoid noisy warnings.
+        css = """
         .regular-weight {
             font-weight: normal;
         }
@@ -64,12 +72,139 @@ class AnonSurfGUI:
             background-color: #f44336;
             color: white;
         }
-        """.encode())
+        /* Main panel background for light and dark modes. The clamp is
+           transparent by default so the window-level background can show
+           through; explicit light/dark rules are applied via classes on
+           the window to ensure consistent theming across Adw widgets. */
+        .main-panel {
+            background-color: transparent;
+        }
+
+        .light-mode .main-panel {
+            background-color: #ffffff;
+            color: #111111;
+        }
+
+        .main-panel.light-mode {
+            background-color: #ffffff;
+            color: #111111;
+        }
+
+        .main-panel.dark-mode {
+            background-color: #2b2b2b;
+            color: #eeeeee;
+        }
+
+        .dark-mode {
+            background-color: #2b2b2b;
+            color: #eeeeee;
+        }
+
+        .dark-mode headerbar {
+            background-color: #1f1f1f;
+            color: #ffffff;
+        }
+        """
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message=".*CssProvider.load_from_data.*",
+                category=DeprecationWarning,
+            )
+            css_provider.load_from_data(css.encode())
         Gtk.StyleContext.add_provider_for_display(
             Gdk.Display.get_default(),
             css_provider,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
+
+        # Keep the window in sync with the system color scheme.
+        try:
+            style_manager = Adw.StyleManager.get_default()
+
+            def _on_scheme_change(sm, prop=None):
+                try:
+                    is_dark = sm.get_color_scheme() == Adw.ColorScheme.DARK
+                except Exception:
+                    # Be conservative: assume light if we can't determine
+                    is_dark = False
+
+                # Also respect Gtk preference which some environments set
+                try:
+                    settings = Gtk.Settings.get_default()
+                    if settings and settings.get_property('gtk-application-prefer-dark-theme'):
+                        is_dark = True
+                except Exception:
+                    pass
+
+                if is_dark:
+                    self.window.add_css_class('dark-mode')
+                    self.window.remove_css_class('light-mode')
+                    try:
+                        GLib.idle_add(self.window.set_title, "AnonSurf — Dark Mode")
+                    except Exception:
+                        pass
+                else:
+                    self.window.add_css_class('light-mode')
+                    self.window.remove_css_class('dark-mode')
+                    try:
+                        GLib.idle_add(self.window.set_title, "AnonSurf")
+                    except Exception:
+                        pass
+
+                # Mirror onto the main clamp if it exists so background
+                # styling is applied directly to the panel widget.
+                try:
+                    clamp_exists = hasattr(self, 'main_clamp') and self.main_clamp is not None
+                    gtk_pref = None
+                    try:
+                        s = Gtk.Settings.get_default()
+                        if s:
+                            gtk_pref = s.get_property('gtk-application-prefer-dark-theme')
+                    except Exception:
+                        pass
+                    if clamp_exists:
+                        if is_dark:
+                            self.main_clamp.add_css_class('dark-mode')
+                            self.main_clamp.remove_css_class('light-mode')
+                        else:
+                            self.main_clamp.add_css_class('light-mode')
+                            self.main_clamp.remove_css_class('dark-mode')
+                except Exception:
+                    pass
+                # Record for later if the UI hasn't created the clamp yet
+                try:
+                    self._pending_scheme_is_dark = is_dark
+                except Exception:
+                    pass
+
+            # Apply initial scheme
+            # Start with an explicit light-mode class; the handler will
+            # switch to dark-mode if needed.
+            self.window.add_css_class('light-mode')
+            # Ensure we have a pending scheme flag in case the UI isn't
+            # created yet (we'll apply to the clamp once it's available).
+            self._pending_scheme_is_dark = None
+            _on_scheme_change(style_manager)
+
+            # React to changes at runtime
+            style_manager.connect('notify::color-scheme', _on_scheme_change)
+
+            # Also react to Gtk preference changes as some environments set
+            # the dark preference via Gtk.Settings instead of Adw.StyleManager
+            try:
+                settings = Gtk.Settings.get_default()
+                if settings:
+                    def _on_gtk_pref_change(settings_obj, prop):
+                        _on_scheme_change(style_manager)
+
+                    settings.connect('notify::gtk-application-prefer-dark-theme', _on_gtk_pref_change)
+            except Exception:
+                pass
+        except Exception:
+            # If Adw.StyleManager isn't available or lacks methods on older
+            # versions, silently continue with default styling.
+            pass
         
         # Add a Gtk.HeaderBar with title and subtitle
         headerbar = Gtk.HeaderBar()
@@ -179,30 +314,41 @@ class AnonSurfGUI:
         
         return True
     
-    # Safe subprocess execution with timeout
-    def _run_subprocess_safe(self, cmd, input_data=None, timeout=None):
-        """Run subprocess with timeout and proper error handling"""
-        if timeout is None:
-            timeout = self._subprocess_timeout
+
+    # Handle sudo password dialog response
+    def on_sudo_response(self, dialog, response):
+        if response == Gtk.ResponseType.OK:
+            self.sudo_response = dialog.entry.get_text()
+        else:
+            self.sudo_response = ""
         
-        try:
-            result = subprocess.run(
-                cmd,
-                input=input_data,
-                    capture_output=True,
-                    text=True,
-                check=True,
-                timeout=timeout
-            )
-            return result
-        except subprocess.TimeoutExpired:
-            raise subprocess.CalledProcessError(1, cmd, "Command timed out")
-        except subprocess.CalledProcessError as e:
-            raise e
+        return True
+
+
+    # Handle start dialog response
+    def on_start_response(self, dialog, response):
+        dialog.destroy()
+        if response == Gtk.ResponseType.YES:
+            # Disable start button temporarily
+            self.start_button.set_sensitive(False)
+            self.run_anonsurf_command("start", "Starting anonymous browsing mode...")
+
+
+    # Handle stop dialog response
+    def on_stop_response(self, dialog, response):
+        dialog.destroy()
+        if response == Gtk.ResponseType.YES:
+            # Disable stop button temporarily
+            self.stop_button.set_sensitive(False)
+            self.run_anonsurf_command("stop", "Stopping anonymous browsing mode...")
+    
+    # NOTE: `_run_subprocess_safe` has been removed. Call sites now use
+    # `subprocess.run` directly and explicitly translate a `TimeoutExpired`
+    # into a `CalledProcessError` to keep existing error handling paths.
     
     # Helper for creating consistent dialog windows
     def _create_dialog_window(self, title, default_size=(400, 200), modal=True):
-        """Create a standardized dialog window with consistent styling"""
+        # Create a standardized dialog window with consistent styling
         dialog = Adw.ApplicationWindow()
         dialog.set_title(title)
         dialog.set_default_size(*default_size)
@@ -235,46 +381,64 @@ class AnonSurfGUI:
                 return False
             except subprocess.CalledProcessError:
                 # Need password
-                dialog = Gtk.Dialog()
-                dialog.set_title("Sudo Password")
-                dialog.set_transient_for(self.window)
-                dialog.set_modal(True)
-                dialog.set_default_size(300, 100)
-                
-                content_area = dialog.get_content_area()
-                
+                # Build a simple modal window to request sudo password
+                win = Gtk.Window(transient_for=self.window)
+                win.set_title("Permission Required")
+                win.set_modal(True)
+                win.set_default_size(300, 100)
+
+                vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+                vbox.set_margin_top(12)
+                vbox.set_margin_bottom(12)
+                vbox.set_margin_start(12)
+                vbox.set_margin_end(12)
+
                 label = Gtk.Label(label="Enter your password:")
                 entry = Gtk.PasswordEntry()
                 # PasswordEntry does not implement `set_activates_default`; connect
-                # the `activate` signal to trigger the dialog's OK response so
-                # pressing Enter submits the password.
-                entry.connect("activate", lambda e: dialog.response(Gtk.ResponseType.OK))
-                
-                content_area.append(label)
-                content_area.append(entry)
-                
-                dialog.add_button("Cancel", Gtk.ResponseType.CANCEL)
-                dialog.add_button("OK", Gtk.ResponseType.OK)
-                dialog.set_default_response(Gtk.ResponseType.OK)
-                
-                # Store entry reference for response handler
-                dialog.entry = entry
-                dialog.connect("response", self.on_sudo_response)
-                dialog.present()
-                
+                # the `activate` signal to trigger the OK action so pressing Enter submits.
+                vbox.append(label)
+                vbox.append(entry)
+
+                btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+                btn_box.set_halign(Gtk.Align.END)
+
+                cancel_btn = Gtk.Button.new_with_label("Cancel")
+                ok_btn = Gtk.Button.new_with_label("OK")
+
+                def on_ok(_):
+                    self.sudo_response = entry.get_text()
+                    win.destroy()
+
+                def on_cancel(_):
+                    self.sudo_response = ""
+                    win.destroy()
+
+                ok_btn.connect("clicked", on_ok)
+                cancel_btn.connect("clicked", on_cancel)
+                entry.connect("activate", lambda e: on_ok(e))
+
+                btn_box.append(cancel_btn)
+                btn_box.append(ok_btn)
+                vbox.append(btn_box)
+
+                win.set_child(vbox)
+                win.present()
+
                 # Wait for response using a simple loop (not ideal but works)
                 self.sudo_response = None
                 while self.sudo_response is None:
                     GLib.MainContext.default().iteration(True)
-                
+
                 password = self.sudo_response
-                dialog.destroy()
                 
                 if password:
                     self.password = password
                     # Test the password
                     try:
-                        subprocess.run(['sudo', '-S', 'true'], input=password.encode(), capture_output=True, check=True)
+                        # Provide the password as a string and include a newline
+                        # so sudo receives a full line via stdin.
+                        subprocess.run(['sudo', '-S', 'true'], input=password + '\n', capture_output=True, check=True, text=True)
                         return True
                     except FileNotFoundError:
                         self.show_error("Error: 'sudo' is not installed. Please install sudo or run as root.")
@@ -291,21 +455,28 @@ class AnonSurfGUI:
         return True
     
 
-    # Handle sudo password dialog response
-    def on_sudo_response(self, dialog, response):
-        if response == Gtk.ResponseType.OK:
-            self.sudo_response = dialog.entry.get_text()
-        else:
-            self.sudo_response = ""
-        
-        return True
-    
 
     # Initialize the main UI
     def setup_ui(self):
         
         # Main container wrapped in Adw.Clamp for responsive margins
         clamp = Adw.Clamp()
+        clamp.add_css_class('main-panel')
+        # Keep a reference so theme handlers can mirror classes onto the clamp
+        # after it is created.
+        self.main_clamp = clamp
+
+        # If theme handler ran earlier, apply the pending scheme to the clamp
+        try:
+            pending = getattr(self, '_pending_scheme_is_dark', None)
+            if pending is True:
+                clamp.add_css_class('dark-mode')
+                clamp.remove_css_class('light-mode')
+            elif pending is False:
+                clamp.add_css_class('light-mode')
+                clamp.remove_css_class('dark-mode')
+        except Exception:
+            pass
         
         #main_vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         main_vbox = Gtk.Box()
@@ -442,7 +613,12 @@ class AnonSurfGUI:
             try:
                 # Get Tor status with timeout
                 try:
-                    result = self._run_subprocess_safe(['systemctl', 'is-active', 'tor'], timeout=5.0)
+                    cmd = ['systemctl', 'is-active', 'tor']
+                    try:
+                        result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=5.0)
+                    except subprocess.TimeoutExpired:
+                        # Keep behavior consistent with previous helper
+                        raise subprocess.CalledProcessError(1, cmd, "Command timed out")
                     tor_status = result.stdout.strip()
                 except subprocess.CalledProcessError:
                     tor_status = "inactive"
@@ -450,7 +626,11 @@ class AnonSurfGUI:
                 # Get IP address with timeout (only if Tor is active to reduce unnecessary calls)
                 if tor_status == "active":
                     try:
-                        result = self._run_subprocess_safe(['curl', '-s', '--max-time', '8', 'icanhazip.com'], timeout=10.0)
+                        cmd = ['curl', '-s', '--max-time', '8', 'icanhazip.com']
+                        try:
+                            result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=10.0)
+                        except subprocess.TimeoutExpired:
+                            raise subprocess.CalledProcessError(1, cmd, "Command timed out")
                         ip_address = result.stdout.strip()
                         # Validate IP format
                         if not ip_address or len(ip_address.split('.')) != 4:
@@ -509,47 +689,94 @@ class AnonSurfGUI:
 
     # Handle start button click
     def on_start_clicked(self, button):
-        # Show confirmation dialog
-        dialog = Gtk.MessageDialog(
-            transient_for=self.window,
-            message_type=Gtk.MessageType.QUESTION,
-            buttons=Gtk.ButtonsType.YES_NO,
-            text="Start AnonSurf",
-            secondary_text="You are about to start the anonymous browsing service.\n\nActive browsers will be closed and cache files deleted.\n\nDo you wish to continue?"
-        )
-        
-        dialog.connect("response", self.on_start_response)
-        dialog.present()
+        # Show confirmation using a simple modal window (avoids deprecated
+        # MessageDialog/response APIs)
+        win = Gtk.Window(transient_for=self.window)
+        win.set_title("Start AnonSurf")
+        win.set_modal(True)
+        win.set_default_size(400, 160)
 
-    # Handle start dialog response
-    def on_start_response(self, dialog, response):
-        dialog.destroy()
-        if response == Gtk.ResponseType.YES:
-            # Disable start button temporarily
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        vbox.set_margin_top(12)
+        vbox.set_margin_bottom(12)
+        vbox.set_margin_start(12)
+        vbox.set_margin_end(12)
+
+        label = Gtk.Label(label="You are about to start the anonymous browsing service.\n\nActive browsers will be closed and cache files deleted.\n\nDo you wish to continue?")
+        label.set_wrap(True)
+        vbox.append(label)
+
+        btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        btn_box.set_halign(Gtk.Align.END)
+
+        no_btn = Gtk.Button.new_with_label("No")
+        yes_btn = Gtk.Button.new_with_label("Yes")
+
+        def on_yes(_):
+            win.destroy()
+            # Disable start button temporarily and execute command
             self.start_button.set_sensitive(False)
             self.run_anonsurf_command("start", "Starting anonymous browsing mode...")
 
+        def on_no(_):
+            win.destroy()
+
+        yes_btn.connect("clicked", on_yes)
+        no_btn.connect("clicked", on_no)
+
+        btn_box.append(no_btn)
+        btn_box.append(yes_btn)
+        vbox.append(btn_box)
+
+        win.set_child(vbox)
+        win.present()
+
     # Handle stop button click
     def on_stop_clicked(self, button):
-        # Show confirmation dialog
-        dialog = Gtk.MessageDialog(
-            transient_for=self.window,
-            message_type=Gtk.MessageType.QUESTION,
-            buttons=Gtk.ButtonsType.YES_NO,
-            text="Stop AnonSurf",
-            secondary_text="You are about to stop anonymous browsing.\n\nActive browsers will be closed and cache files deleted.\n\nDo you wish to continue?"
-        )
-        
-        dialog.connect("response", self.on_stop_response)
-        dialog.present()
+        # Show confirmation using a simple modal window (avoids deprecated
+        # MessageDialog/response APIs)
+        win = Gtk.Window(transient_for=self.window)
+        win.set_title("Stop AnonSurf")
+        win.set_modal(True)
+        win.set_default_size(400, 160)
 
-    # Handle stop dialog response
-    def on_stop_response(self, dialog, response):
-        dialog.destroy()
-        if response == Gtk.ResponseType.YES:
-            # Disable stop button temporarily
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        vbox.set_margin_top(12)
+        vbox.set_margin_bottom(12)
+        vbox.set_margin_start(12)
+        vbox.set_margin_end(12)
+
+        label = Gtk.Label(label="You are about to stop anonymous browsing.\n\nActive browsers will be closed and cache files deleted.\n\nDo you wish to continue?")
+        label.set_wrap(True)
+        vbox.append(label)
+
+        btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        btn_box.set_halign(Gtk.Align.END)
+
+        no_btn = Gtk.Button.new_with_label("No")
+        yes_btn = Gtk.Button.new_with_label("Yes")
+
+        def on_yes(_):
+            win.destroy()
+            # Disable stop button temporarily and execute command
             self.stop_button.set_sensitive(False)
             self.run_anonsurf_command("stop", "Stopping anonymous browsing mode...")
+
+        def on_no(_):
+            win.destroy()
+
+        yes_btn.connect("clicked", on_yes)
+        no_btn.connect("clicked", on_no)
+
+        btn_box.append(no_btn)
+        btn_box.append(yes_btn)
+        vbox.append(btn_box)
+
+        win.set_child(vbox)
+        win.present()
+
+    # (Note) start/stop confirmation dialogs now use custom modal windows
+    # instead of the deprecated response-based MessageDialog APIs.
     
 
     # Handle change IP button click
@@ -564,14 +791,32 @@ class AnonSurfGUI:
                 # Build command with sudo as needed
                 if self.password:
                     cmd = ['sudo', '-S', '/etc/init.d/anonsurf', 'ipinfo']
-                    result = self._run_subprocess_safe(cmd, input_data=self.password.encode(), timeout=15.0)
+                    try:
+                        try:
+                            result = subprocess.run(cmd, input=self.password + '\n', capture_output=True, text=True, check=True, timeout=10.0)
+                        except subprocess.TimeoutExpired:
+                            raise subprocess.CalledProcessError(1, cmd, "Command timed out")
+                    except subprocess.CalledProcessError:
+                        raise
                 elif self.can_sudo_nopass:
                     cmd = ['sudo', '-n', '/etc/init.d/anonsurf', 'ipinfo']
-                    result = self._run_subprocess_safe(cmd, timeout=15.0)
+                    try:
+                        try:
+                            result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=10.0)
+                        except subprocess.TimeoutExpired:
+                            raise subprocess.CalledProcessError(1, cmd, "Command timed out")
+                    except subprocess.CalledProcessError:
+                        raise
                 else:
                     # As a last resort try without sudo (may fail)
                     cmd = ['/etc/init.d/anonsurf', 'ipinfo']
-                    result = self._run_subprocess_safe(cmd, timeout=15.0)
+                    try:
+                        try:
+                            result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=10.0)
+                        except subprocess.TimeoutExpired:
+                            raise subprocess.CalledProcessError(1, cmd, "Command timed out")
+                    except subprocess.CalledProcessError:
+                        raise
                 
                 # Parse XML output with proper XML parser
                 try:
@@ -639,9 +884,38 @@ class AnonSurfGUI:
                 error_msg = f"Error getting IP info: {e}"
                 GLib.idle_add(self.show_error, error_msg)
         
-        thread = threading.Thread(target=get_ip_info)
-        thread.daemon = True
-        thread.start()
+        #thread = threading.Thread(target=get_ip_info)
+        #thread.daemon = True
+        #thread.start()
+
+        # NOTE: previously this started the fetch immediately; instead we now
+        # show a brief informational dialog with an OK button and start the
+        # fetch only after the user acknowledges. This prevents surprising
+        # background work and informs the user of the expected wait time.
+        def start_after_ack():
+            # Show a dialog informing the user about potential delay
+            info_win, vbox = self._create_dialog_window("IP Address Details", (420, 140))
+            label = Gtk.Label(label="\nThis operation may take up to 15 seconds. Please be patient while the information is retrieved.\n\nClick OK to proceed.")
+            label.set_wrap(True)
+            vbox.append(label)
+
+            ok_btn = Gtk.Button.new_with_label("OK")
+            ok_btn.set_halign(Gtk.Align.CENTER)
+
+            def on_ok(_):
+                info_win.destroy()
+                # Start the IP fetch in background
+                #t = threading.Thread(target=get_ip_info)
+                #t.daemon = True
+                #t.start()
+                get_ip_info()
+
+            ok_btn.connect("clicked", on_ok)
+            vbox.append(ok_btn)
+            info_win.present()
+
+        # Show the prefetch dialog
+        start_after_ack()
     
 
     # Show IP information dialog
@@ -731,13 +1005,31 @@ class AnonSurfGUI:
                 # Build command with sudo as needed
                 if self.password:
                     cmd = ['sudo', '-S', '/etc/init.d/anonsurf', action]
-                    self._run_subprocess_safe(cmd, input_data=self.password.encode(), timeout=30.0)
+                    try:
+                        try:
+                            subprocess.run(cmd, input=self.password + '\n', capture_output=True, text=True, check=True, timeout=30.0)
+                        except subprocess.TimeoutExpired:
+                            raise subprocess.CalledProcessError(1, cmd, "Command timed out")
+                    except subprocess.CalledProcessError:
+                        raise
                 elif self.can_sudo_nopass:
                     cmd = ['sudo', '-n', '/etc/init.d/anonsurf', action]
-                    self._run_subprocess_safe(cmd, timeout=30.0)
+                    try:
+                        try:
+                            subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=30.0)
+                        except subprocess.TimeoutExpired:
+                            raise subprocess.CalledProcessError(1, cmd, "Command timed out")
+                    except subprocess.CalledProcessError:
+                        raise
                 else:
                     cmd = ['/etc/init.d/anonsurf', action]
-                    self._run_subprocess_safe(cmd, timeout=30.0)
+                    try:
+                        try:
+                            subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=30.0)
+                        except subprocess.TimeoutExpired:
+                            raise subprocess.CalledProcessError(1, cmd, "Command timed out")
+                    except subprocess.CalledProcessError:
+                        raise
                 
                 # Update status after command completes
                 GLib.idle_add(self.update_status)
@@ -882,7 +1174,7 @@ class AnonSurfGUI:
         vbox.append(icon_box)
         
         # Version
-        version_label = Gtk.Label(label="Version 1.1.0")
+        version_label = Gtk.Label(label="Version 1.2.0")
         version_label.add_css_class("dim-label")
         version_label.set_halign(Gtk.Align.CENTER)
         vbox.append(version_label)

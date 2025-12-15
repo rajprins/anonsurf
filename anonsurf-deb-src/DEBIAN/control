@@ -1,5 +1,5 @@
 Package: anonsurf
-Version: 1.1.0
+Version: 1.2.0
 Architecture: all
 Maintainer: rajprins
 Depends: tor, curl, bleachbit, python3, gir1.2-gtk-4.0, iptables, iptables-persistent, secure-delete
@@ -7,4 +7,4 @@ Recommends:
 Suggests:
 Section: net
 Priority: optional
-Description: Basic GTK UI for anonymous surfing using Tor and I2P, for Debian/Ubuntu systems
+Description: Anonsurf is a simple graphical user interface (GUI) frontend for Tor, designed specifically for Debian and Ubuntu systems. It allows users to easily route their internet traffic through the Tor network, enhancing privacy and anonymity online. The application provides a user-friendly way to start and stop Tor services, manage settings, and clear traces of online activity using tools like BleachBit. Please note that Anonsurf requires root privileges to operate effectively.  

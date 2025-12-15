@@ -42,7 +42,7 @@ fi
 function cleanup {
 	# Kill processes
 	echo -e "${GREEN}>>>${BLUE} Killing running applications${RESETCOLOR}"
-	killall -q chrome brave dropbox skype icedove thunderbird firefox firefox-esr chromium xchat hexchat transmission steam firejail /usr/lib/firefox-esr/firefox-esr
+	killall -q chrome brave dropbox skype icedove thunderbird firefox firefox-esr chromium xchat hexchat transmission steam firejail
 	# Remove caches
 	echo -e "${GREEN}>>>${BLUE} Cleaning application caches"
 	bleachbit -c adobe_reader.cache brave.session brave.history brave.form_history brave.cache chromium.session chromium.history chromium.form_history elinks.history emesene.cache epiphany.cache firefox.cache firefox.crash_reports firefox.url_history firefox.forms flash.cache flash.cookies google_chrome.cache google_chrome.history google_chrome.form_history google_chrome.search_engines google_chrome.session google_earth.temporary_files links2.history opera.cache opera.form_history opera.history &> /dev/null
