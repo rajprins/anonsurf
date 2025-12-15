@@ -176,7 +176,7 @@ class AnonSurfGUI:
                     self.window.add_css_class('dark-mode')
                     self.window.remove_css_class('light-mode')
                     try:
-                        GLib.idle_add(self.window.set_title, "AnonSurf — Dark Mode")
+                        GLib.idle_add(self.window.set_title, "AnonSurf")
                     except Exception:
                         pass
                 else:
@@ -335,7 +335,6 @@ class AnonSurfGUI:
     
     # Check if required dependencies are installed
     def check_dependencies(self) -> bool:
-        # (normal execution) Check if AnonSurf CLI is installed
         # Check if AnonSurf CLI is installed
         if not os.path.exists('/etc/init.d/anonsurf'):
             self.show_error("Error: AnonSurf CLI is not installed.")
@@ -349,38 +348,6 @@ class AnonSurfGUI:
             return False
         
         return True
-    
-
-    # Handle sudo password dialog response
-    def on_sudo_response(self, dialog, response):
-        if response == Gtk.ResponseType.OK:
-            self.sudo_response = dialog.entry.get_text()
-        else:
-            self.sudo_response = ""
-        
-        return True
-
-
-    # Handle start dialog response
-    def on_start_response(self, dialog, response):
-        dialog.destroy()
-        if response == Gtk.ResponseType.YES:
-            # Disable start button temporarily
-            self.start_button.set_sensitive(False)
-            self.run_anonsurf_command("start", "Starting anonymous browsing mode...")
-
-
-    # Handle stop dialog response
-    def on_stop_response(self, dialog, response):
-        dialog.destroy()
-        if response == Gtk.ResponseType.YES:
-            # Disable stop button temporarily
-            self.stop_button.set_sensitive(False)
-            self.run_anonsurf_command("stop", "Stopping anonymous browsing mode...")
-    
-    # NOTE: `_run_subprocess_safe` has been removed. Call sites now use
-    # `subprocess.run` directly and explicitly translate a `TimeoutExpired`
-    # into a `CalledProcessError` to keep existing error handling paths.
     
     # Helper for creating consistent dialog windows
     def _create_dialog_window(self, title, default_size=(400, 200), modal=True):
@@ -403,6 +370,27 @@ class AnonSurfGUI:
         
         return dialog, vbox
     
+    # Helper for Libadwaita confirmation dialogs
+    def _show_confirmation_dialog(self, title: str, body: str, on_accept):
+        dialog = Adw.MessageDialog.new(self.window, title, body)
+
+        dialog.add_response("cancel", "No")
+        dialog.add_response("accept", "Yes")
+        dialog.set_default_response("accept")
+        dialog.set_close_response("cancel")
+        dialog.set_response_appearance("accept", Adw.ResponseAppearance.SUGGESTED)
+
+        def _on_response(dlg, response):
+            if response == "accept":
+                try:
+                    on_accept()
+                except Exception:
+                    pass
+            dlg.destroy()
+
+        dialog.connect("response", _on_response)
+        dialog.present()
+    
     # Initialize sudo access
     def init_sudo(self) -> bool:
         if os.geteuid() != 0:
@@ -416,50 +404,34 @@ class AnonSurfGUI:
                 self.show_error("Error: 'sudo' is not installed. Please install sudo or run as root.")
                 return False
             except subprocess.CalledProcessError:
-                # Need password
-                # Build a simple modal window to request sudo password
-                win = Gtk.Window(transient_for=self.window)
-                win.set_title("Permission Required")
-                win.set_modal(True)
-                win.set_default_size(300, 100)
+                # Need password: use a Libadwaita message dialog with a password field
+                dialog = Adw.MessageDialog.new(
+                    self.window,
+                    "Permission Required",
+                    "Enter your password to run AnonSurf with administrative privileges."
+                )
 
-                vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-                vbox.set_margin_top(12)
-                vbox.set_margin_bottom(12)
-                vbox.set_margin_start(12)
-                vbox.set_margin_end(12)
-
-                label = Gtk.Label(label="Enter your password:")
                 entry = Gtk.PasswordEntry()
-                # PasswordEntry does not implement `set_activates_default`; connect
-                # the `activate` signal to trigger the OK action so pressing Enter submits.
-                vbox.append(label)
-                vbox.append(entry)
+                entry.set_placeholder_text("Password")
+                dialog.set_extra_child(entry)
 
-                btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-                btn_box.set_halign(Gtk.Align.END)
+                dialog.add_response("cancel", "Cancel")
+                dialog.add_response("ok", "OK")
+                dialog.set_default_response("ok")
+                dialog.set_close_response("cancel")
+                dialog.set_response_appearance("ok", Adw.ResponseAppearance.SUGGESTED)
 
-                cancel_btn = Gtk.Button.new_with_label("Cancel")
-                ok_btn = Gtk.Button.new_with_label("OK")
+                self.sudo_response = None
 
-                def on_ok(_):
-                    self.sudo_response = entry.get_text()
-                    win.destroy()
+                def _on_response(dlg, response):
+                    if response == "ok":
+                        self.sudo_response = entry.get_text()
+                    else:
+                        self.sudo_response = ""
+                    dlg.destroy()
 
-                def on_cancel(_):
-                    self.sudo_response = ""
-                    win.destroy()
-
-                ok_btn.connect("clicked", on_ok)
-                cancel_btn.connect("clicked", on_cancel)
-                entry.connect("activate", lambda e: on_ok(e))
-
-                btn_box.append(cancel_btn)
-                btn_box.append(ok_btn)
-                vbox.append(btn_box)
-
-                win.set_child(vbox)
-                win.present()
+                dialog.connect("response", _on_response)
+                dialog.present()
 
                 # Wait for response using a simple loop (not ideal but works)
                 self.sudo_response = None
@@ -631,9 +603,8 @@ class AnonSurfGUI:
         self.window.set_resizable(False)
     
 
-    # Update the status display
+    # Update the status display with caching to reduce system calls
     def update_status(self, force_refresh=False):
-        """Update status with caching to reduce system calls"""
         current_time = time.time()
         
         # Check cache first (unless force refresh)
@@ -713,9 +684,6 @@ class AnonSurfGUI:
         else:
             self.window.add_css_class("tor-inactive")
 
-        # Also mirror the status class onto the main clamp/panel so
-        # the background styling takes effect even if widget-level
-        # rules are used by the theme.
         try:
             if hasattr(self, 'main_clamp') and self.main_clamp is not None:
                 self.main_clamp.remove_css_class('tor-active')
@@ -739,94 +707,33 @@ class AnonSurfGUI:
 
     # Handle start button click
     def on_start_clicked(self, button):
-        # Show confirmation using a simple modal window (avoids deprecated
-        # MessageDialog/response APIs)
-        win = Gtk.Window(transient_for=self.window)
-        win.set_title("Start AnonSurf")
-        win.set_modal(True)
-        win.set_default_size(400, 160)
+        body = (
+            "You are about to start the anonymous browsing service.\n\n"
+            "Active browsers will be closed and cache files deleted.\n\n"
+            "Do you wish to continue?"
+        )
 
-        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        vbox.set_margin_top(12)
-        vbox.set_margin_bottom(12)
-        vbox.set_margin_start(12)
-        vbox.set_margin_end(12)
-
-        label = Gtk.Label(label="You are about to start the anonymous browsing service.\n\nActive browsers will be closed and cache files deleted.\n\nDo you wish to continue?")
-        label.set_wrap(True)
-        vbox.append(label)
-
-        btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        btn_box.set_halign(Gtk.Align.END)
-
-        no_btn = Gtk.Button.new_with_label("No")
-        yes_btn = Gtk.Button.new_with_label("Yes")
-
-        def on_yes(_):
-            win.destroy()
+        def do_start():
             # Disable start button temporarily and execute command
             self.start_button.set_sensitive(False)
             self.run_anonsurf_command("start", "Starting anonymous browsing mode...")
 
-        def on_no(_):
-            win.destroy()
-
-        yes_btn.connect("clicked", on_yes)
-        no_btn.connect("clicked", on_no)
-
-        btn_box.append(no_btn)
-        btn_box.append(yes_btn)
-        vbox.append(btn_box)
-
-        win.set_child(vbox)
-        win.present()
-
+        self._show_confirmation_dialog("Start AnonSurf", body, do_start)
+    
     # Handle stop button click
     def on_stop_clicked(self, button):
-        # Show confirmation using a simple modal window (avoids deprecated
-        # MessageDialog/response APIs)
-        win = Gtk.Window(transient_for=self.window)
-        win.set_title("Stop AnonSurf")
-        win.set_modal(True)
-        win.set_default_size(400, 160)
+        body = (
+            "You are about to stop anonymous browsing.\n\n"
+            "Active browsers will be closed and cache files deleted.\n\n"
+            "Do you wish to continue?"
+        )
 
-        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        vbox.set_margin_top(12)
-        vbox.set_margin_bottom(12)
-        vbox.set_margin_start(12)
-        vbox.set_margin_end(12)
-
-        label = Gtk.Label(label="You are about to stop anonymous browsing.\n\nActive browsers will be closed and cache files deleted.\n\nDo you wish to continue?")
-        label.set_wrap(True)
-        vbox.append(label)
-
-        btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        btn_box.set_halign(Gtk.Align.END)
-
-        no_btn = Gtk.Button.new_with_label("No")
-        yes_btn = Gtk.Button.new_with_label("Yes")
-
-        def on_yes(_):
-            win.destroy()
+        def do_stop():
             # Disable stop button temporarily and execute command
             self.stop_button.set_sensitive(False)
             self.run_anonsurf_command("stop", "Stopping anonymous browsing mode...")
 
-        def on_no(_):
-            win.destroy()
-
-        yes_btn.connect("clicked", on_yes)
-        no_btn.connect("clicked", on_no)
-
-        btn_box.append(no_btn)
-        btn_box.append(yes_btn)
-        vbox.append(btn_box)
-
-        win.set_child(vbox)
-        win.present()
-
-    # (Note) start/stop confirmation dialogs now use custom modal windows
-    # instead of the deprecated response-based MessageDialog APIs.
+        self._show_confirmation_dialog("Stop AnonSurf", body, do_stop)
     
 
     # Handle change IP button click
@@ -939,117 +846,151 @@ class AnonSurfGUI:
         #thread.start()
 
         # NOTE: previously this started the fetch immediately; instead we now
-        # show a brief informational dialog with an OK button and start the
-        # fetch only after the user acknowledges. This prevents surprising
-        # background work and informs the user of the expected wait time.
+        # show a brief informational dialog and start the fetch after user
+        # acknowledgement, using Libadwaita dialogs.
         def start_after_ack():
-            # Show a dialog informing the user about potential delay
-            info_win, vbox = self._create_dialog_window("IP Address Details", (420, 140))
-            label = Gtk.Label(label="\nThis operation may take up to 15 seconds. Please be patient while the information is retrieved.\n\nClick OK to proceed.")
-            label.set_wrap(True)
-            vbox.append(label)
+            # Libadwaita dialog informing about potential delay
+            body = (
+                "This operation may take up to 15 seconds.\n\n"
+                "Please be patient while the information is retrieved."
+            )
+            dialog = Adw.MessageDialog.new(
+                self.window,
+                "IP Address Details",
+                body,
+            )
 
-            ok_btn = Gtk.Button.new_with_label("OK")
-            ok_btn.set_halign(Gtk.Align.CENTER)
+            dialog.add_response("cancel", "Cancel")
+            dialog.add_response("ok", "OK")
+            dialog.set_default_response("ok")
+            dialog.set_close_response("cancel")
+            dialog.set_response_appearance("ok", Adw.ResponseAppearance.SUGGESTED)
 
-            def on_ok(_):
-                info_win.destroy()
-                # Start the IP fetch in background
-                #t = threading.Thread(target=get_ip_info)
-                #t.daemon = True
-                #t.start()
-                get_ip_info()
+            def _on_response(dlg, response):
+                if response == "ok":
+                    # Start the IP fetch (runs synchronously as before)
+                    get_ip_info()
+                dlg.destroy()
 
-            ok_btn.connect("clicked", on_ok)
-            vbox.append(ok_btn)
-            info_win.present()
+            dialog.connect("response", _on_response)
+            dialog.present()
 
         # Show the prefetch dialog
         start_after_ack()
     
 
-    # Show IP information dialog
+    # Show IP information dialog (Libadwaita message dialog with extra content)
     def show_info_dialog(self, info_text: str):
-        info_win = Adw.ApplicationWindow()
-        info_win.set_title("Public IP Address Details")
-        info_win.set_default_size(400, 350)
-        info_win.set_transient_for(self.window)
-        info_win.set_modal(True)
-        
-        # Content layout with clamp and vertical box
-        clamp = Adw.Clamp()
-        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        vbox.set_margin_start(10)
-        vbox.set_margin_end(10)
-        vbox.set_margin_top(10)
-        vbox.set_margin_bottom(10)
-        clamp.set_child(vbox)
-        
+        dialog = Adw.MessageDialog.new(
+            self.window,
+            "Public IP Address Details",
+            None,
+        )
+
+        # Use a scrolled, read-only text view as extra child
         scrolled = Gtk.ScrolledWindow()
         scrolled.set_hexpand(True)
         scrolled.set_vexpand(True)
+        scrolled.set_min_content_height(200)
+        scrolled.set_min_content_width(400)
+
         text_view = Gtk.TextView()
         text_view.set_editable(False)
         text_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
         buffer = text_view.get_buffer()
         buffer.set_text(info_text)
+
         scrolled.set_child(text_view)
-        vbox.append(scrolled)
-        
-        # Actions row
-        actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        actions.set_halign(Gtk.Align.END)
-        
-        copy_btn = Gtk.Button.new_with_label("Copy")
-        copy_btn.set_tooltip_text("Copy to clipboard")
-        def on_copy(_btn):
-            display = info_win.get_display()
-            clipboard = display.get_clipboard()
-            data = info_text.encode('utf-8')
-            bytes_obj = GLib.Bytes.new(data)
-            provider = Gdk.ContentProvider.new_for_bytes('text/plain;charset=utf-8', bytes_obj)
-            clipboard.set(provider)
-        copy_btn.connect("clicked", on_copy)
-        actions.append(copy_btn)
-        
-        save_btn = Gtk.Button.new_with_label("Save")
-        save_btn.set_tooltip_text("Save to file…")
+        dialog.set_extra_child(scrolled)
 
-        def on_save(_btn):
-            file_dialog = Gtk.FileDialog()
-            file_dialog.set_initial_name("ip-info.txt")
-            def on_save_complete(fdlg, res):
-                try:
-                    gfile = fdlg.save_finish(res)
-                    if gfile is not None:
-                        path = gfile.get_path() if hasattr(gfile, 'get_path') else None
-                        if path:
-                            try:
-                                with open(path, 'w', encoding='utf-8') as f:
-                                    f.write(info_text)
-                                self.show_notification(f"Saved to {path}")
-                            except Exception as e:
-                                self.show_error(f"Failed to write file: {e}")
-                except Exception as e:
-                    self.show_error(f"Save cancelled or failed: {e}")
-            file_dialog.save(info_win, None, on_save_complete)
-        
-        save_btn.connect("clicked", on_save)
-        actions.append(save_btn)
-        
-        close_btn = Gtk.Button.new_with_label("Close")
-        close_btn.set_tooltip_text("Close")
-        close_btn.connect("clicked", lambda _b: info_win.destroy())
-        actions.append(close_btn)
-        
-        vbox.append(actions)
-        
-        info_win.set_content(clamp)
-        info_win.present()
+        # Responses: Copy, Save, Close
+        dialog.add_response("copy", "Copy")
+        dialog.add_response("save", "Save")
+        dialog.add_response("close", "Close")
+        dialog.set_default_response("close")
+        dialog.set_close_response("close")
+        dialog.set_response_appearance("close", Adw.ResponseAppearance.SUGGESTED)
+
+        def _on_response(dlg, response):
+            if response == "copy":
+                display = self.window.get_display()
+                clipboard = display.get_clipboard()
+                data = info_text.encode('utf-8')
+                bytes_obj = GLib.Bytes.new(data)
+                provider = Gdk.ContentProvider.new_for_bytes(
+                    'text/plain;charset=utf-8',
+                    bytes_obj,
+                )
+                clipboard.set(provider)
+
+            elif response == "save":
+                file_dialog = Gtk.FileDialog()
+                file_dialog.set_initial_name("ip-info.txt")
+
+                def on_save_complete(fdlg, res):
+                    try:
+                        gfile = fdlg.save_finish(res)
+                        if gfile is not None:
+                            path = gfile.get_path() if hasattr(gfile, 'get_path') else None
+                            if path:
+                                try:
+                                    with open(path, 'w', encoding='utf-8') as f:
+                                        f.write(info_text)
+                                    self.show_notification(f"Saved to {path}")
+                                except Exception as e:
+                                    self.show_error(f"Failed to write file: {e}")
+                    except Exception as e:
+                        self.show_error(f"Save cancelled or failed: {e}")
+
+                file_dialog.save(self.window, None, on_save_complete)
+
+            # Always destroy at the end
+            dlg.destroy()
+
+        dialog.connect("response", _on_response)
+        dialog.present()
     
-
-    # Run AnonSurf command with progress dialog
+    
+    # Run AnonSurf command with Libadwaita progress dialog
     def run_anonsurf_command(self, action: str, progress_text: str):
+        # Create a Libadwaita message dialog to show progress
+        dialog = Adw.MessageDialog.new(
+            self.window,
+            "AnonSurf",
+            None,
+        )
+
+        # No explicit responses; close programmatically when done
+        # Use an extra child containing label + progress bar
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+        vbox.set_margin_start(20)
+        vbox.set_margin_end(20)
+        vbox.set_margin_top(20)
+        vbox.set_margin_bottom(20)
+
+        label = Gtk.Label(label=progress_text)
+        label.set_wrap(True)
+        label.set_halign(Gtk.Align.CENTER)
+        vbox.append(label)
+
+        progress_bar = Gtk.ProgressBar()
+        progress_bar.set_fraction(0.0)
+        progress_bar.set_hexpand(True)
+        vbox.append(progress_bar)
+
+        dialog.set_extra_child(vbox)
+        dialog.present()
+
+        # Animate progress bar while command is running
+        def animate_progress():
+            current = progress_bar.get_fraction()
+            if current < 0.9:
+                progress_bar.set_fraction(current + 0.05)
+                return True
+            return False
+
+        GLib.timeout_add(100, animate_progress)
+
         def run_command():
             try:
                 # Build command with sudo as needed
@@ -1057,7 +998,14 @@ class AnonSurfGUI:
                     cmd = ['sudo', '-S', '/etc/init.d/anonsurf', action]
                     try:
                         try:
-                            subprocess.run(cmd, input=self.password + '\n', capture_output=True, text=True, check=True, timeout=30.0)
+                            subprocess.run(
+                                cmd,
+                                input=self.password + '\n',
+                                capture_output=True,
+                                text=True,
+                                check=True,
+                                timeout=30.0,
+                            )
                         except subprocess.TimeoutExpired:
                             raise subprocess.CalledProcessError(1, cmd, "Command timed out")
                     except subprocess.CalledProcessError:
@@ -1066,7 +1014,13 @@ class AnonSurfGUI:
                     cmd = ['sudo', '-n', '/etc/init.d/anonsurf', action]
                     try:
                         try:
-                            subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=30.0)
+                            subprocess.run(
+                                cmd,
+                                capture_output=True,
+                                text=True,
+                                check=True,
+                                timeout=30.0,
+                            )
                         except subprocess.TimeoutExpired:
                             raise subprocess.CalledProcessError(1, cmd, "Command timed out")
                     except subprocess.CalledProcessError:
@@ -1075,176 +1029,99 @@ class AnonSurfGUI:
                     cmd = ['/etc/init.d/anonsurf', action]
                     try:
                         try:
-                            subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=30.0)
+                            subprocess.run(
+                                cmd,
+                                capture_output=True,
+                                text=True,
+                                check=True,
+                                timeout=30.0,
+                            )
                         except subprocess.TimeoutExpired:
                             raise subprocess.CalledProcessError(1, cmd, "Command timed out")
                     except subprocess.CalledProcessError:
                         raise
-                
-                # Update status after command completes
+
+                # Update status and notify on success
                 GLib.idle_add(self.update_status)
                 GLib.idle_add(self.show_notification, f"AnonSurf {action} completed successfully")
-                
+
             except subprocess.CalledProcessError as e:
                 error_msg = f"Error running AnonSurf {action}: {e}"
                 GLib.idle_add(self.show_error, error_msg)
-        
-        # Show progress dialog
-        progress_win = Adw.ApplicationWindow()
-        progress_win.set_title("AnonSurf")
-        progress_win.set_default_size(350, 150)
-        progress_win.set_transient_for(self.window)
-        progress_win.set_modal(True)
-        
-        # Content layout with clamp and vertical box
-        clamp = Adw.Clamp()
-        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
-        vbox.set_margin_start(20)
-        vbox.set_margin_end(20)
-        vbox.set_margin_top(20)
-        vbox.set_margin_bottom(20)
-        clamp.set_child(vbox)
-        
-        # Progress label
-        label = Gtk.Label(label=progress_text)
-        label.set_halign(Gtk.Align.CENTER)
-        vbox.append(label)
-        
-        # Progress bar
-        progress_bar = Gtk.ProgressBar()
-        progress_bar.set_fraction(0.0)
-        progress_bar.set_hexpand(True)
-        vbox.append(progress_bar)
-        
-        progress_win.set_content(clamp)
-        progress_win.present()
-        
-        # Animate progress bar
-        def animate_progress():
-            current = progress_bar.get_fraction()
-            if current < 0.9:
-                progress_bar.set_fraction(current + 0.1)
-                return True
-            return False
-        
-        GLib.timeout_add(100, animate_progress)
-        
+            finally:
+                # Ensure dialog is closed on the main thread
+                GLib.idle_add(dialog.destroy)
+
         # Run command in background
         thread = threading.Thread(target=run_command)
         thread.daemon = True
         thread.start()
-        
-        # Close progress dialog after a delay
-        GLib.timeout_add(2000, progress_win.destroy)
     
-
+    
     # Show error dialog
     def show_error(self, message: str):
-        error_win, vbox = self._create_dialog_window("Error", (400, 200))
-        
-        # Error icon and message
-        error_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-        error_icon = Gtk.Image.new_from_icon_name("dialog-error-symbolic")
-        error_icon.set_pixel_size(48)
-        error_box.append(error_icon)
-        
-        error_label = Gtk.Label(label=message)
-        error_label.set_wrap(True)
-        error_label.set_hexpand(True)
-        error_box.append(error_label)
-        
-        vbox.append(error_box)
-        
-        # Close button
-        close_btn = Gtk.Button.new_with_label("Close")
-        close_btn.set_halign(Gtk.Align.CENTER)
-        close_btn.connect("clicked", lambda _b: error_win.destroy())
-        vbox.append(close_btn)
-        
-        error_win.present()
+        dialog = Adw.MessageDialog.new(
+            self.window,
+            "Error",
+            message,
+        )
 
-    # Show notification (simplified version)
+        dialog.add_response("close", "Close")
+        dialog.set_default_response("close")
+        dialog.set_close_response("close")
+        dialog.set_response_appearance("close", Adw.ResponseAppearance.DESTRUCTIVE)
+
+        dialog.connect("response", lambda dlg, _r: dlg.destroy())
+        dialog.present()
+    
+    # Show notification (Libadwaita message dialog)
     def show_notification(self, message: str):
-        notif_win, vbox = self._create_dialog_window("AnonSurf", (400, 150))
-        
-        # Success icon and message
-        success_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-        success_icon = Gtk.Image.new_from_icon_name("anonsurf")
-        success_icon.set_pixel_size(48)
-        success_box.append(success_icon)
-        
-        success_label = Gtk.Label(label=message)
-        success_label.set_wrap(True)
-        success_label.set_hexpand(True)
-        success_box.append(success_label)
-        
-        vbox.append(success_box)
-        
-        # Close button
-        close_btn = Gtk.Button.new_with_label("Close")
-        close_btn.set_halign(Gtk.Align.CENTER)
-        close_btn.connect("clicked", lambda _b: notif_win.destroy())
-        vbox.append(close_btn)
-        
-        notif_win.present()
+        dialog = Adw.MessageDialog.new(
+            self.window,
+            "AnonSurf",
+            message,
+        )
 
+        dialog.add_response("ok", "OK")
+        dialog.set_default_response("ok")
+        dialog.set_close_response("ok")
+        dialog.set_response_appearance("ok", Adw.ResponseAppearance.SUGGESTED)
+
+        dialog.connect("response", lambda dlg, _r: dlg.destroy())
+        dialog.present()
+    
     # Show About dialog
     def on_about_clicked(self, button):
         # Close the popover menu
         if hasattr(self, 'about_popover'):
             self.about_popover.popdown()
-        
-        about_win = Adw.ApplicationWindow()
-        about_win.set_title("About AnonSurf")
-        about_win.set_default_size(400, 300)
-        about_win.set_transient_for(self.window)
-        about_win.set_modal(True)
-        
-        # Content layout with clamp and vertical box
-        clamp = Adw.Clamp()
-        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
-        vbox.set_margin_start(20)
-        vbox.set_margin_end(20)
-        vbox.set_margin_top(20)
-        vbox.set_margin_bottom(20)
-        clamp.set_child(vbox)
-        
-        # App icon and title
-        icon_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        icon_box.set_halign(Gtk.Align.CENTER)
-        
-        app_icon = Gtk.Image.new_from_icon_name("anonsurf")
-        app_icon.set_pixel_size(64)
-        icon_box.append(app_icon)
-        
-        app_title = Gtk.Label(label="AnonSurf")
-        app_title.add_css_class("title-1")
-        icon_box.append(app_title)
-        
-        vbox.append(icon_box)
-        
-        # Version
-        version_label = Gtk.Label(label="Version 1.2.0")
-        version_label.add_css_class("dim-label")
-        version_label.set_halign(Gtk.Align.CENTER)
-        vbox.append(version_label)
-        
-        # Description
-        desc_label = Gtk.Label(label="Anonymous Browsing Service\nA more secure way to browse the internet.")
-        desc_label.set_wrap(True)
-        desc_label.set_halign(Gtk.Align.CENTER)
-        desc_label.set_margin_top(16)
-        vbox.append(desc_label)
-        
-        # Close button
-        close_btn = Gtk.Button.new_with_label("Close")
-        close_btn.set_halign(Gtk.Align.CENTER)
-        close_btn.set_margin_top(16)
-        close_btn.connect("clicked", lambda _b: about_win.destroy())
-        vbox.append(close_btn)
-        
-        about_win.set_content(clamp)
-        about_win.present()
+
+        # Use a Libadwaita AboutWindow with the current API
+        about = Adw.AboutWindow()
+        about.set_transient_for(self.window)
+        about.set_modal(True)
+
+        # Use properties instead of deprecated setters
+        about.props.application_name = "AnonSurf"
+        about.props.application_icon = "anonsurf"
+        about.props.version = "1.2.0"
+        about.props.developer_name = "Roy Prins"
+        about.props.website = "https://github.com/rajprins/anonsurf"
+        about.props.issue_url = "https://github.com/rajprins/anonsurf/issues"
+        about.props.comments = "Anonymous Browsing Service — a more secure way to browse the internet."
+
+        # Set license - try Gtk.License enum first, fallback to string
+        try:
+            if hasattr(Gtk, 'License') and hasattr(Gtk.License, 'GPL_3_0'):
+                about.props.license_type = Gtk.License.GPL_3_0
+            else:
+                # Fallback: set license text directly
+                about.props.license = "GPL-3.0"
+        except (AttributeError, TypeError):
+            # If license properties don't work, just skip it
+            pass
+
+        about.present()
 
     # Handle quit menu item
     def on_quit_clicked(self, button):
